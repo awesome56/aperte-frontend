@@ -20,7 +20,26 @@
   --color-bg-blue: #d6edff;
   --color-danger: #ff2020;
 
+  /* Short aliases used by the rebuilt components (exact Figma values) */
+  --clr-black: #0a0809;
+  --clr-dark: #2b2b2b;
+  --clr-muted: #808080;
+  --clr-light: #aaaaaa;
+  --clr-line: #d3d3d3;
+  --clr-white: #ffffff;
+  --clr-blue: #2076ff;
+  --clr-blue2: #4360ed;
+  --clr-purple: #392e5a;
+  --clr-purple-btn: #390ba2;
+  --clr-green: #00ce39;
+  --clr-red: #ff1111;
+  --clr-blue-bg: #d6edff;
+  --clr-green-bg: #f1fff1;
+  --clr-red-bg: #ffe1e1;
+  --clr-gray-bg: #d9d9d9;
+
   --font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+  --font: var(--font-family);
 
   --container: 1200px;
   --radius: 16px;
