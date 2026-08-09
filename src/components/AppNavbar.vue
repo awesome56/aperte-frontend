@@ -8,59 +8,47 @@ const router = useRouter()
 
 const initials = computed(() => {
   if (!auth.user?.full_name) return ''
-  return auth.user.full_name
-    .split(' ')
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
+  return auth.user.full_name.split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase()
 })
 
-function logout() {
-  auth.logout()
-  router.push('/')
-}
+function logout() { auth.logout(); router.push('/') }
 </script>
 
 <template>
+  <!-- Top utility bar -->
+  <div class="topbar">
+    <div class="container topbar-inner">
+      <span class="tb-left">Rezilla, 18 Grattan St, Brooklyn</span>
+      <div class="tb-right">
+        <span>+1 206-214-2298</span>
+        <span class="dot">·</span>
+        <span>support@rezilla.com</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main header -->
   <header class="navbar">
     <div class="container nav-inner">
-      <RouterLink to="/" class="brand">
-        <span class="brand-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M12 3 2 12h3v8h6v-6h2v6h6v-8h3L12 3z" fill="currentColor" />
-          </svg>
-        </span>
-        Aperte
-      </RouterLink>
-
       <nav class="nav-links">
         <RouterLink to="/" exact-active-class="active">Home</RouterLink>
-        <RouterLink to="/#about" class="anchor">About</RouterLink>
+        <a href="/#about">About</a>
         <RouterLink to="/listings" active-class="active">Listings</RouterLink>
-        <RouterLink to="/#services" class="anchor">Services</RouterLink>
-        <RouterLink to="/#testimonials" class="anchor">Reviews</RouterLink>
+        <a href="/#services">Services</a>
+        <a href="/listings">Blogs</a>
       </nav>
 
-      <div class="nav-actions">
+      <RouterLink to="/" class="brand">Aperte</RouterLink>
+
+      <div class="nav-end">
         <template v-if="!auth.isAuthenticated">
-          <RouterLink to="/login" class="login-link">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z"
-              />
-            </svg>
-            Login/Register
-          </RouterLink>
-          <RouterLink to="/add-listing" class="btn btn-primary btn-sm">Add Listing</RouterLink>
+          <RouterLink to="/login" class="login-link">Login/Register</RouterLink>
+          <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
         </template>
         <template v-else>
-          <RouterLink to="/dashboard" class="avatar" :title="auth.user?.full_name">
-            <img v-if="auth.user?.profile_picture && auth.user.profile_picture !== 'default_profile.png'" :src="auth.user.profile_picture" alt="" />
-            <span v-else>{{ initials }}</span>
-          </RouterLink>
-          <RouterLink to="/add-listing" class="btn btn-primary btn-sm">Add Listing</RouterLink>
-          <button class="btn btn-outline btn-sm" @click="logout">Logout</button>
+          <RouterLink to="/dashboard" class="avatar" :title="auth.user?.full_name">{{ initials }}</RouterLink>
+          <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
+          <button class="logout-btn" @click="logout">Logout</button>
         </template>
       </div>
     </div>
@@ -68,106 +56,41 @@ function logout() {
 </template>
 
 <style scoped>
-.navbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--color-border);
-  height: var(--header-height);
-}
-
-.nav-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 100%;
-  gap: 24px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--color-purple-dark);
-}
-
-.brand-icon {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--color-primary);
-  color: #fff;
-}
-
-.nav-links {
-  display: flex;
-  gap: 28px;
-  font-weight: 500;
-}
-
-.nav-links a {
-  color: var(--color-text-2);
-  transition: color 0.2s;
-}
-
-.nav-links a:hover,
-.nav-links a.active {
-  color: var(--color-primary);
-}
-
-.nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.login-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-2);
-  font-weight: 500;
-}
-
-.login-link:hover {
-  color: var(--color-primary);
-}
-
-.btn-sm {
-  padding: 10px 18px;
-  font-size: 0.9rem;
-}
-
-.avatar {
-  width: 40px;
+.topbar {
+  background: var(--clr-purple-btn);
   height: 40px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-weight: 600;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
 }
+.topbar-inner {
+  display: flex; justify-content: space-between; align-items: center; width: 100%;
+}
+.tb-left, .tb-right { color: #fff; font-size: 0.82rem; }
+.tb-right { display: flex; gap: 8px; align-items: center; }
+.dot { opacity: 0.5; }
 
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.navbar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--clr-white); border-bottom: 1px solid #eee;
+  height: 80px;
 }
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 100%; gap: 20px;
+}
+.nav-links { display: flex; gap: 30px; }
+.nav-links a { font-size: 1rem; font-weight: 500; color: var(--clr-dark); transition: color 0.15s; }
+.nav-links a:hover, .nav-links a.active { color: var(--clr-blue); }
 
-@media (max-width: 768px) {
-  .nav-links {
-    display: none;
-  }
-  .btn-sm {
-    display: none;
-  }
-}
+.brand { font-size: 1.25rem; font-weight: 600; color: var(--clr-black); }
+
+.nav-end { display: flex; align-items: center; gap: 16px; }
+.login-link { font-size: 1rem; font-weight: 500; color: var(--clr-dark); }
+.login-link:hover { color: var(--clr-blue); }
+
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--clr-blue2); color:#fff; display:grid; place-items:center; font-weight:600; font-size:.85rem; }
+.logout-btn { background:none; border:none; font-size:.9rem; color:var(--clr-muted); cursor:pointer; }
+.logout-btn:hover { color: var(--clr-red); }
+
+@media (max-width: 768px) { .nav-links { display:none; } .login-link{display:none;} }
 </style>

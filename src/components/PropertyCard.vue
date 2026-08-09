@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Property } from '@/api'
 import { categoryLabels, purposeLabels } from '@/api'
 
@@ -6,10 +7,12 @@ const props = defineProps<{ property: Property }>()
 
 const dpImage = computed(() => {
   const imgs = props.property.images || []
-  return imgs.find((i: any) => i.dp === 1)?.image_url || imgs[0]?.image_url || ''
+  const dp = imgs.find((i: any) => i.dp === 1)
+  return dp?.image_url || imgs[0]?.image_url || ''
 })
 
-import { computed } from 'vue'
+const badge = computed(() => categoryLabels[props.property.category] || props.property.category)
+const purpose = computed(() => purposeLabels[props.property.purpose] || props.property.purpose)
 
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
@@ -21,32 +24,16 @@ function fmt(n: number | null | undefined) {
   <div class="card">
     <RouterLink :to="`/properties/${property.id}`" class="media">
       <img v-if="dpImage" :src="dpImage" :alt="property.title" loading="lazy" />
-      <div v-else class="placeholder">Aperte</div>
-      <span class="badge">{{ categoryLabels[property.category] || property.category }}</span>
-      <span class="purpose" :class="property.purpose">{{ purposeLabels[property.purpose] || property.purpose }}</span>
+      <div v-else class="placeholder">{{ badge }}</div>
+      <span class="badge" :class="property.purpose">{{ purpose }}</span>
     </RouterLink>
     <div class="body">
-      <h3 class="title">
-        <RouterLink :to="`/properties/${property.id}`">{{ property.title }}</RouterLink>
-      </h3>
-      <p class="location">{{ property.location }}, {{ property.city }}, {{ property.state }}</p>
+      <span class="price">$ {{ fmt(property.price) }}</span>
+      <h3 class="title"><RouterLink :to="`/properties/${property.id}`">{{ property.title }}</RouterLink></h3>
+      <p class="loc">{{ property.location }}, {{ property.city }}, {{ property.state }}</p>
       <div class="meta">
-        <span v-if="property.bedrooms">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h20v-6a3 3 0 0 0-3-3H2v9zm0-2v-5h15v5H2zm0 2v1a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-1H2z"/></svg>
-          {{ property.bedrooms }} Bed
-        </span>
-        <span v-if="property.bathrooms">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21v-2h20v2H2zM4 17v-4a6 6 0 0 1 12 0h2a8 8 0 0 0-16 0v4h2z"/></svg>
-          {{ property.bathrooms }} Bath
-        </span>
-        <span v-if="property.area">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v16H4V4zm2 2v12h12V6H6z"/></svg>
-          {{ fmt(property.area) }} m²
-        </span>
-      </div>
-      <div class="footer-row">
-        <span class="price">${{ fmt(property.price) }}</span>
-        <RouterLink :to="`/properties/${property.id}`" class="btn btn-primary btn-sm">View</RouterLink>
+        <span v-if="property.bedrooms != null">{{ property.bedrooms }} Beds</span>
+        <span v-if="property.bathrooms != null">{{ property.bathrooms }} Bath</span>
       </div>
     </div>
   </div>
@@ -55,126 +42,32 @@ function fmt(n: number | null | undefined) {
 <style scoped>
 .card {
   background: #fff;
-  border-radius: var(--radius);
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: var(--shadow);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-}
-
-.media {
-  position: relative;
-  display: block;
-  height: 220px;
-  overflow: hidden;
-}
-
-.media img {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  transition: transform 0.2s;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
+.card:hover { transform: translateY(-4px); }
 
-.placeholder {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, var(--color-blue-2), var(--color-purple));
-  color: #fff;
-  font-weight: 600;
-  font-size: 1.3rem;
-}
+.media { position: relative; display: block; height: 340px; overflow: hidden; }
+.media img { width: 100%; height: 100%; object-fit: cover; }
+.placeholder { width:100%; height:100%; display:grid; place-items:center; background:#e8eaef; color:#9aa0ac; font-size:1rem; }
 
 .badge {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--color-purple-dark);
-  padding: 5px 12px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  position: absolute; top: 14px; left: 14px;
+  padding: 9px 18px; border-radius: 8px;
+  font-size: 0.88rem; font-weight: 500;
 }
+.badge.rent { background: var(--clr-green-bg); color: var(--clr-green); }
+.badge.sale { background: var(--clr-red-bg); color: var(--clr-red); }
+.badge.both { background: var(--clr-blue-bg); color: var(--clr-blue); }
 
-.purpose {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  padding: 5px 12px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #fff;
-}
-
-.purpose.rent {
-  background: var(--color-accent);
-}
-
-.purpose.sale {
-  background: var(--color-pink);
-}
-
-.purpose.both {
-  background: var(--color-blue-2);
-}
-
-.body {
-  padding: 18px 20px 20px;
-}
-
-.title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--color-purple-dark);
-  margin-bottom: 6px;
-}
-
-.title a {
-  color: inherit;
-}
-
-.title a:hover {
-  color: var(--color-primary);
-}
-
-.location {
-  color: var(--color-muted);
-  font-size: 0.85rem;
-  margin-bottom: 12px;
-}
-
-.meta {
-  display: flex;
-  gap: 16px;
-  color: var(--color-muted);
-  font-size: 0.85rem;
-  margin-bottom: 16px;
-}
-
-.meta span {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.footer-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-top: 1px solid var(--color-border);
-  padding-top: 14px;
-}
-
-.price {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--color-primary);
-}
+.body { padding: 18px 20px 20px; }
+.price { font-size: 1.72rem; font-weight: 600; color: var(--clr-dark); display: block; }
+.title { margin: 4px 0 4px; font-size: 1.2rem; font-weight: 500; }
+.title a { color: var(--clr-dark); }
+.title a:hover { color: var(--clr-blue); }
+.loc { color: var(--clr-muted); font-size: 1rem; margin-bottom: 12px; }
+.meta { display: flex; gap: 18px; color: var(--clr-dark); font-size: 1rem; font-weight: 400; }
 </style>
