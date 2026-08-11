@@ -44,6 +44,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/favorites',
+      name: 'favorites',
+      component: () => import('../views/FavoritesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/add-listing',
       name: 'add-listing',
       component: () => import('../views/AddListingView.vue'),
@@ -107,6 +113,16 @@ router.beforeEach(async (to) => {
       return { name: 'admin-overview' }
     }
   }
+})
+
+// Fire-and-forget page view tracking for analytics.
+router.afterEach((to) => {
+  if (to.path === '/favicon.ico') return
+  const propMatch = to.path.match(/^\/properties\/(\d+)/)
+  const propertyId = propMatch ? Number(propMatch[1]) : null
+  import('@/api')
+    .then((m) => m.trackingApi.pageview(to.fullPath, propertyId))
+    .catch(() => {})
 })
 
 export default router

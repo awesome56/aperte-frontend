@@ -6,6 +6,7 @@ import {
   bookingApi,
   roomApi,
   slotApi,
+  favoriteApi,
   type Property,
   type Room,
   type Slot,
@@ -22,6 +23,9 @@ const auth = useAuthStore()
 const property = ref<Property | null>(null)
 const loading = ref(true)
 const error = ref('')
+
+const favorited = ref(false)
+const favoritesCount = ref(0)
 
 const rooms = ref<Room[]>([])
 const slots = ref<Slot[]>([])
@@ -87,6 +91,20 @@ function startBooking() {
   bookingErr.value = ''
 }
 
+async function toggleFavorite() {
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+  try {
+    await favoriteApi.toggle(property.value!.id)
+    favorited.value = !favorited.value
+    favoritesCount.value += favorited.value ? 1 : -1
+  } catch (e: any) {
+    bookingErr.value = e.response?.data?.error || 'Failed to update favorite.'
+  }
+}
+
 async function submitBooking() {
   bookingSubmitting.value = true
   bookingErr.value = ''
@@ -127,6 +145,15 @@ onMounted(async () => {
   try {
     const res = await propertyApi.get(id)
     property.value = res.data
+    favoritesCount.value = res.data.favorites_count || 0
+    if (auth.isAuthenticated) {
+      try {
+        const fav = await favoriteApi.check(id)
+        favorited.value = fav.data.favorited
+      } catch {
+        // non-fatal: heart defaults to unfavorited
+      }
+    }
     const cat = res.data.category
     if (cat === 'hotel') {
       const r = await roomApi.list(id)
@@ -183,6 +210,14 @@ onMounted(async () => {
         </div>
         <div class="price-box">
           <span class="price">{{ fmtPrice(property.price) }}</span>
+          <button
+            class="btn btn-outline btn-block fav-btn"
+            :class="{ active: favorited }"
+            @click="toggleFavorite"
+          >
+            {{ favorited ? '♥ Saved' : '♡ Save to Favorites' }}
+            <span v-if="favoritesCount" class="fav-count">({{ favoritesCount }})</span>
+          </button>
           <button v-if="isBookable" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
           <RouterLink
             v-if="!isOwner && contactEmail"
@@ -443,6 +478,21 @@ onMounted(async () => {
 
 .price-box {
   min-width: 240px;
+}
+
+.fav-btn {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  margin-bottom: 10px;
+}
+
+.fav-btn.active {
+  color: #ff4757;
+  border-color: #ff4757;
+}
+
+.fav-count {
+  font-weight: 600;
 }
 
 .price {

@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { Property } from '@/api'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { favoriteApi, type Property } from '@/api'
 import { categoryLabels, purposeLabels, formatPrice } from '@/api'
 
 const props = defineProps<{ property: Property }>()
+
+const router = useRouter()
+const auth = useAuthStore()
 
 const dpImage = computed(() => {
   // browse/list responses provide a ready `dp` URL; fall back to the images array
@@ -15,10 +20,37 @@ const dpImage = computed(() => {
 
 const badge = computed(() => categoryLabels[props.property.category] || props.property.category)
 const purpose = computed(() => purposeLabels[props.property.purpose] || props.property.purpose)
+
+const favorited = ref(Boolean(props.property.favorited))
+const favoritesCount = ref(props.property.favorites_count || 0)
+
+async function toggleFavorite(e: Event) {
+  e.preventDefault()
+  e.stopPropagation()
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
+    return
+  }
+  try {
+    await favoriteApi.toggle(props.property.id)
+    favorited.value = !favorited.value
+    favoritesCount.value += favorited.value ? 1 : -1
+  } catch {
+    // ignore toggle errors (e.g. offline)
+  }
+}
 </script>
 
 <template>
   <div class="card">
+    <button class="heart" :class="{ active: favorited }" title="Save to favorites" @click="toggleFavorite">
+      <svg v-if="favorited" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+      </svg>
+      <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+      </svg>
+    </button>
     <RouterLink :to="`/properties/${property.id}`" class="media">
       <img v-if="dpImage" :src="dpImage" :alt="property.title" loading="lazy" />
       <div v-else class="placeholder">{{ badge }}</div>
@@ -35,6 +67,8 @@ const purpose = computed(() => purposeLabels[props.property.purpose] || props.pr
       <div class="meta">
         <span v-if="property.bedrooms != null">{{ property.bedrooms }} Beds</span>
         <span v-if="property.bathrooms != null">{{ property.bathrooms }} Bath</span>
+        <span class="views" v-if="property.views">{{ property.views }} views</span>
+        <span class="fav-count" v-if="favoritesCount">{{ favoritesCount }} ♥</span>
       </div>
     </div>
   </div>
@@ -48,8 +82,29 @@ const purpose = computed(() => purposeLabels[props.property.purpose] || props.pr
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
   transition: transform 0.2s;
   width: 100%;
+  position: relative;
 }
 .card:hover { transform: translateY(-4px); }
+
+.heart {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  color: #8a8f9c;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: transform 0.15s, color 0.15s;
+}
+.heart:hover { transform: scale(1.1); color: #ff4757; }
+.heart.active { color: #ff4757; }
 
 .media { position: relative; display: block; height: 340px; overflow: hidden; }
 .media img { width: 100%; height: 100%; object-fit: cover; }

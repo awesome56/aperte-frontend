@@ -45,6 +45,9 @@ export interface Property {
   negotiable: number
   available: number
   approved: number
+  views?: number
+  favorites_count?: number
+  favorited?: boolean
   average_rating: number | null
   username: string
   owner_full_name?: string
@@ -126,6 +129,32 @@ export const authApi = {
     api.post('/auth/changepassword', { old_password, new_password, comfirm_password }),
 }
 
+export const favoriteApi = {
+  toggle: (id: number) => api.post<{ message: string }>(`/favorites/${id}`),
+  check: (id: number) => api.get<{ favorited: boolean }>(`/favorites/check/${id}`),
+  list: (params?: Record<string, unknown>) => api.get<Paginated<Property>>('/favorites/', { params }),
+}
+
+export const trackingApi = {
+  pageview: (path: string, propertyId?: number | null) =>
+    api.post('/tracking/pageview', {
+      path,
+      visitor_id: getVisitorId(),
+      property_id: propertyId || null,
+      referrer: document.referrer || null,
+    }),
+}
+
+// A stable per-browser visitor id used for anonymous analytics.
+function getVisitorId(): string {
+  let id = localStorage.getItem('aperte_visitor_id')
+  if (!id) {
+    id = 'v_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+    localStorage.setItem('aperte_visitor_id', id)
+  }
+  return id
+}
+
 export const propertyApi = {
   browse: (params: Record<string, unknown>) => api.get<Paginated<Property>>('/properties/', { params }),
   get: (id: number) => api.get<Property>(`/properties/${id}`),
@@ -198,6 +227,38 @@ export interface AdminStats {
   shortlets: number
 }
 
+export interface AdminAnalytics {
+  total_page_views: number
+  unique_visitors: number
+  views_today: number
+  views_7d: number
+  new_visitors_today: number
+  new_visitors_7d: number
+  total_favorites: number
+  total_property_views: number
+  top_properties: {
+    id: number
+    title: string
+    views: number
+    dp: string
+    price: number
+    currency: string
+    location: string
+    city: string
+    state: string
+  }[]
+  favorite_properties: {
+    id: number
+    title: string
+    favorites_count: number
+    dp: string
+    price: number
+    currency: string
+  }[]
+  top_pages: { path: string; count: number }[]
+  views_by_day: { date: string; count: number }[]
+}
+
 export interface AdminUser {
   id: number
   username: string
@@ -245,6 +306,7 @@ export interface Role {
 
 export const adminApi = {
   stats: () => api.get<AdminStats>('/admin/stats'),
+  analytics: () => api.get<AdminAnalytics>('/admin/analytics'),
   users: (params: Record<string, unknown>) => api.get<Paginated<AdminUser>>('/admin/users', { params }),
   setRole: (id: number, role: string) => api.put<AdminUser>(`/admin/users/${id}/role`, { role }),
   deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
