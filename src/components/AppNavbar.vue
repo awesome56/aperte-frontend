@@ -46,7 +46,7 @@ function logout() { auth.logout(); router.push('/') }
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
         </template>
         <template v-else>
-          <RouterLink v-if="auth.isAdmin" to="/admin" class="login-link">Admin</RouterLink>
+          <RouterLink v-if="auth.isStaff" to="/admin" class="login-link">Admin</RouterLink>
           <RouterLink to="/dashboard" class="avatar" :title="auth.user?.full_name">{{ initials }}</RouterLink>
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
           <button class="logout-btn" @click="logout">Logout</button>

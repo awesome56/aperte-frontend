@@ -64,16 +64,19 @@ const router = createRouter({
           path: 'users',
           name: 'admin-users',
           component: () => import('../views/admin/AdminUsers.vue'),
+          meta: { requiresPermission: 'users.view' },
         },
         {
           path: 'properties',
           name: 'admin-properties',
           component: () => import('../views/admin/AdminProperties.vue'),
+          meta: { requiresPermission: 'properties.view' },
         },
         {
           path: 'roles',
           name: 'admin-roles',
           component: () => import('../views/admin/AdminRoles.vue'),
+          meta: { requiresPermission: 'roles.view' },
         },
       ],
     },
@@ -93,8 +96,16 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
-  if (to.meta.requiresAdmin && !auth.isAdmin) {
+  if (to.meta.requiresAdmin && !auth.isStaff) {
     return { name: 'dashboard' }
+  }
+  if (to.meta.requiresPermission && !auth.isAdmin) {
+    // non-admins need the specific permission; admins pass
+    const res = await import('@/api').then((m) => m.authApiPermissions.mine())
+    const perms = res.data.permissions
+    if (!perms.includes(to.meta.requiresPermission as string)) {
+      return { name: 'admin-overview' }
+    }
   }
 })
 

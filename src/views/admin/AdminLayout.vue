@@ -33,7 +33,7 @@ function logout() {
         <RouterLink to="/admin/properties" class="nav-item" active-class="active">
           <span class="dot" style="background:#b899eb"></span> Properties
         </RouterLink>
-        <RouterLink to="/admin/roles" class="nav-item" active-class="active">
+        <RouterLink v-if="auth.isAdmin" to="/admin/roles" class="nav-item" active-class="active">
           <span class="dot" style="background:#adadfb"></span> Roles & Permissions
         </RouterLink>
       </nav>
@@ -83,15 +83,19 @@ function logout() {
 
 /* Sidebar */
 .sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
   width: 212px;
   flex-shrink: 0;
   border-right: 1px solid #eee;
   display: flex;
   flex-direction: column;
   padding: 24px 14px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  background: #fff;
+  z-index: 100;
+  overflow-y: auto;
 }
 
 .logo {
@@ -170,6 +174,7 @@ function logout() {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  margin-left: 212px;
 }
 
 .header {

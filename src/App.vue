@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppNavbar from '@/components/AppNavbar.vue'
 import AppFooter from '@/components/AppFooter.vue'
 
 const auth = useAuthStore()
+const route = useRoute()
+
+// The admin area has its own chrome (sidebar/header) - hide the site navbar & footer there.
+const isAdminArea = computed(() => route.path.startsWith('/admin'))
 
 onMounted(() => {
   auth.fetchMe()
@@ -13,11 +18,11 @@ onMounted(() => {
 
 <template>
   <div class="app">
-    <AppNavbar />
+    <AppNavbar v-if="!isAdminArea" />
     <main class="main">
       <RouterView />
     </main>
-    <AppFooter />
+    <AppFooter v-if="!isAdminArea" />
   </div>
 </template>
 

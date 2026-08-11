@@ -18,6 +18,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(token.value))
   const isAdmin = computed(() => user.value?.role === 'admin')
+  // staff + admin can access the admin area
+  const isStaff = computed(() => ['admin', 'staff'].includes(user.value?.role || ''))
 
   async function login(email: string, password: string) {
     const res = await authApi.login({ email, password })
@@ -57,5 +59,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('aperte_token')
   }
 
-  return { token, user, isAuthenticated, isAdmin, login, register, fetchMe, logout }
+  return { token, user, isAuthenticated, isAdmin, isStaff, login, register, fetchMe, logout }
 })
