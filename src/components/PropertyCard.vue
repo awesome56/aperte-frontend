@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Property } from '@/api'
-import { categoryLabels, purposeLabels } from '@/api'
+import { categoryLabels, purposeLabels, formatPrice } from '@/api'
 
 const props = defineProps<{ property: Property }>()
 
@@ -13,11 +13,6 @@ const dpImage = computed(() => {
 
 const badge = computed(() => categoryLabels[props.property.category] || props.property.category)
 const purpose = computed(() => purposeLabels[props.property.purpose] || props.property.purpose)
-
-function fmt(n: number | null | undefined) {
-  if (n == null) return '—'
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
-}
 </script>
 
 <template>
@@ -28,7 +23,7 @@ function fmt(n: number | null | undefined) {
       <span class="badge" :class="property.purpose">{{ purpose }}</span>
     </RouterLink>
     <div class="body">
-      <span class="price">$ {{ fmt(property.price) }}</span>
+      <span class="price">{{ formatPrice(property.price, property.currency) }}</span>
       <h3 class="title"><RouterLink :to="`/properties/${property.id}`">{{ property.title }}</RouterLink></h3>
       <p class="loc">{{ property.location }}, {{ property.city }}, {{ property.state }}</p>
       <div class="meta">

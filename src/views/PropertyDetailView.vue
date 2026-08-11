@@ -11,6 +11,7 @@ import {
   type Slot,
   categoryLabels,
   purposeLabels,
+  formatPrice,
 } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
@@ -56,6 +57,11 @@ function fmt(n: number | null | undefined) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
 }
 
+function fmtPrice(n: number | null | undefined) {
+  if (n == null) return '—'
+  return formatPrice(n, property.value?.currency)
+}
+
 function startBooking() {
   if (!auth.isAuthenticated) {
     router.push({ name: 'login', query: { redirect: route.fullPath } })
@@ -86,7 +92,7 @@ async function submitBooking() {
       payload.check_out = bookingForm.value.check_out
     }
     const res = await bookingApi.create(property.value!.id, payload)
-    bookingMsg.value = `Booking requested! Total: $${fmt(res.data.total)} (status: ${res.data.status}).`
+    bookingMsg.value = `Booking requested! Total: ${formatPrice(res.data.total, property.value?.currency)} (status: ${res.data.status}).`
     bookingOpen.value = false
   } catch (e: any) {
     bookingErr.value = e.response?.data?.error || 'Booking failed. Please try again.'
@@ -155,7 +161,7 @@ onMounted(async () => {
           </p>
         </div>
         <div class="price-box">
-          <span class="price">${{ fmt(property.price) }}</span>
+          <span class="price">{{ fmtPrice(property.price) }}</span>
           <button v-if="isBookable" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
           <RouterLink v-else-if="!isOwner" :to="`mailto:?subject=${encodeURIComponent(property.title)}`" class="btn btn-outline btn-block">Contact Owner</RouterLink>
         </div>
@@ -220,7 +226,7 @@ onMounted(async () => {
               <strong>{{ r.room_type }}</strong>
               <span class="room-meta">{{ r.beds }} bed · {{ r.available ? 'Available' : 'Unavailable' }}</span>
             </div>
-            <span class="room-price">${{ fmt(r.price) }}/night</span>
+            <span class="room-price">{{ formatPrice(r.price, property.currency) }}/night</span>
             <button v-if="isBookable" class="btn btn-primary btn-sm" @click="bookingForm.room_id = r.id; startBooking()">Book</button>
           </div>
         </div>
@@ -233,7 +239,7 @@ onMounted(async () => {
         <div class="slots">
           <div v-for="s in slots" :key="s.id" class="slot">
             <span>{{ s.date }} · {{ s.start_time }}–{{ s.end_time }}</span>
-            <span class="room-price">${{ fmt(s.price) }}</span>
+            <span class="room-price">{{ formatPrice(s.price, property.currency) }}</span>
             <button v-if="isBookable" class="btn btn-primary btn-sm" @click="bookingForm.slot_id = s.id; startBooking()">Book</button>
           </div>
         </div>
@@ -249,7 +255,7 @@ onMounted(async () => {
             <label>Room</label>
             <select v-model.number="bookingForm.room_id" class="form-control" required>
               <option value="0" disabled>Select a room</option>
-              <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.room_type }} — ${{ fmt(r.price) }}/night</option>
+              <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.room_type }} — {{ formatPrice(r.price, property.currency) }}/night</option>
             </select>
           </div>
 
@@ -257,7 +263,7 @@ onMounted(async () => {
             <label>Slot</label>
             <select v-model.number="bookingForm.slot_id" class="form-control" required>
               <option value="0" disabled>Select a slot</option>
-              <option v-for="s in slots" :key="s.id" :value="s.id">{{ s.date }} {{ s.start_time }}–{{ s.end_time }} — ${{ fmt(s.price) }}</option>
+              <option v-for="s in slots" :key="s.id" :value="s.id">{{ s.date }} {{ s.start_time }}–{{ s.end_time }} — {{ formatPrice(s.price, property.currency) }}</option>
             </select>
           </div>
 

@@ -12,6 +12,7 @@ const form = reactive({
   property_type: 'apartment',
   purpose: 'rent',
   price: 0,
+  currency: 'NGN',
   area: '',
   bedrooms: '',
   bathrooms: '',
@@ -83,6 +84,7 @@ async function submit() {
       property_type: form.property_type,
       purpose: form.purpose,
       price: Number(form.price),
+      currency: form.currency,
       location: form.location,
       city: form.city,
       state: form.state,
@@ -148,9 +150,24 @@ async function submit() {
 
         <div class="row">
           <div class="form-group">
-            <label>Price ($)</label>
+            <label>Price</label>
             <input v-model.number="form.price" type="number" min="0" class="form-control" required />
           </div>
+          <div class="form-group">
+            <label>Currency</label>
+            <select v-model="form.currency" class="form-control">
+              <option value="NGN">₦ NGN (Naira)</option>
+              <option value="USD">$ USD (Dollar)</option>
+              <option value="GBP">£ GBP (Pound)</option>
+              <option value="EUR">€ EUR (Euro)</option>
+              <option value="GHS">GH₵ GHS (Cedi)</option>
+              <option value="KES">KSh KES (Shilling)</option>
+              <option value="ZAR">R ZAR (Rand)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
           <div class="form-group">
             <label>Area (m², optional)</label>
             <input v-model="form.area" type="number" class="form-control" />

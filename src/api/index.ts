@@ -26,6 +26,7 @@ export interface Property {
   purpose: string
   attributes: Record<string, unknown>
   price: number
+  currency: string
   area: number | null
   bedrooms: number | null
   bathrooms: number | null
@@ -179,4 +180,29 @@ export const bookingStatusLabels: Record<string, string> = {
   confirmed: 'Confirmed',
   cancelled: 'Cancelled',
   completed: 'Completed',
+}
+
+// Map ISO currency code to its symbol for display.
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  NGN: '₦',
+  USD: '$',
+  GBP: '£',
+  EUR: '€',
+  GHS: 'GH₵',
+  KES: 'KSh',
+  ZAR: 'R',
+  CAD: 'CA$',
+  AUD: 'A$',
+}
+
+export function currencySymbol(code?: string | null): string {
+  return (code && CURRENCY_SYMBOLS[code.toUpperCase()]) || (code ? `${code} ` : '$')
+}
+
+// Format a price with the property's currency symbol.
+// e.g. formatPrice(20000, 'NGN') -> "₦20,000"
+export function formatPrice(price: number | null | undefined, currency?: string | null): string {
+  if (price == null) return '—'
+  const n = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(price)
+  return `${currencySymbol(currency)}${n}`
 }

@@ -11,6 +11,7 @@ import {
   type Room,
   type Slot,
   bookingStatusLabels,
+  formatPrice,
 } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
@@ -206,7 +207,7 @@ onMounted(loadAll)
               <div class="placeholder" v-else></div>
               <div>
                 <strong>{{ p.title }}</strong>
-                <span class="meta">{{ p.city }}, {{ p.state }} · ${{ fmt(p.price) }} · {{ p.category }}</span>
+                <span class="meta">{{ p.city }}, {{ p.state }} · {{ formatPrice(p.price, p.currency) }} · {{ p.category }}</span>
               </div>
             </div>
             <RouterLink :to="`/properties/${p.id}`" class="btn btn-outline btn-sm">View</RouterLink>
@@ -221,7 +222,7 @@ onMounted(loadAll)
             <h3>Rooms</h3>
             <div v-if="rooms.length" class="mini-list">
               <div v-for="r in rooms" :key="r.id" class="mini-row">
-                <span>{{ r.room_type }} — ${{ fmt(r.price) }}/night ({{ r.beds }} bed{{ r.beds > 1 ? 's' : '' }})</span>
+                <span>{{ r.room_type }} — {{ formatPrice(r.price, selected?.currency) }}/night ({{ r.beds }} bed{{ r.beds > 1 ? 's' : '' }})</span>
                 <button class="btn btn-danger btn-sm" @click="deleteRoom(r.id)">Delete</button>
               </div>
             </div>
@@ -239,7 +240,7 @@ onMounted(loadAll)
             <h3>Time Slots</h3>
             <div v-if="slots.length" class="mini-list">
               <div v-for="s in slots" :key="s.id" class="mini-row">
-                <span>{{ s.date }} {{ s.start_time }}–{{ s.end_time }} · ${{ fmt(s.price) }} · <b>{{ s.status }}</b></span>
+                <span>{{ s.date }} {{ s.start_time }}–{{ s.end_time }} · {{ formatPrice(s.price, selected?.currency) }} · <b>{{ s.status }}</b></span>
                 <button class="btn btn-danger btn-sm" @click="deleteSlot(s.id)">Delete</button>
               </div>
             </div>
@@ -259,7 +260,7 @@ onMounted(loadAll)
             <div class="mini-list">
               <div v-for="b in propertyBookings" :key="b.id" class="mini-row booking-row">
                 <span>
-                  #{{ b.id }} · {{ b.check_in || '—' }} → {{ b.check_out || '—' }} · ${{ fmt(b.total) }} ·
+                  #{{ b.id }} · {{ b.check_in || '—' }} → {{ b.check_out || '—' }} · {{ formatPrice(b.total, selected?.currency) }} ·
                   <b>{{ bookingStatusLabels[b.status] || b.status }}</b>
                 </span>
                 <div class="row-actions">
@@ -285,7 +286,7 @@ onMounted(loadAll)
         <div v-for="b in myBookings" :key="b.id" class="mini-row booking-row">
           <span>
             #{{ b.id }} · Property {{ b.property_id }} · {{ b.check_in || '—' }} → {{ b.check_out || '—' }} ·
-            ${{ fmt(b.total) }} · <b>{{ bookingStatusLabels[b.status] || b.status }}</b>
+            {{ formatPrice(b.total, 'NGN') }} · <b>{{ bookingStatusLabels[b.status] || b.status }}</b>
           </span>
           <div class="row-actions">
             <button v-if="b.status === 'pending' || b.status === 'confirmed'" class="btn btn-danger btn-sm" @click="setBookingStatus(b.id, 'cancelled')">Cancel</button>
