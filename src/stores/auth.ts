@@ -9,6 +9,7 @@ interface User {
   full_name: string
   profile_picture: string
   email_verified?: number
+  role?: string
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -16,6 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
 
   const isAuthenticated = computed(() => Boolean(token.value))
+  const isAdmin = computed(() => user.value?.role === 'admin')
 
   async function login(email: string, password: string) {
     const res = await authApi.login({ email, password })
@@ -29,6 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
         full_name: res.data.user.full_name,
         profile_picture: res.data.user.profile_picture,
         email_verified: res.data.user.email_verified,
+        role: res.data.user.role,
       }
     }
     return res.data
@@ -54,5 +57,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('aperte_token')
   }
 
-  return { token, user, isAuthenticated, login, register, fetchMe, logout }
+  return { token, user, isAuthenticated, isAdmin, login, register, fetchMe, logout }
 })

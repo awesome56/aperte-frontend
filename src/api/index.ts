@@ -9,6 +9,7 @@ export interface AuthResponse {
     phone_number: number | null
     profile_picture: string
     email_verified: number
+    role?: string
     access?: string
     refresh?: string
   }
@@ -182,6 +183,59 @@ export const userApi = {
     return api.post('/users/dp', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
   deleteDp: () => api.delete('/users/dp'),
+}
+
+export interface AdminStats {
+  total_users: number
+  total_properties: number
+  pending_properties: number
+  approved_properties: number
+  total_bookings: number
+  total_rooms: number
+  hotels: number
+  shortlets: number
+}
+
+export interface AdminUser {
+  id: number
+  username: string
+  email: string
+  full_name: string
+  phone_number: string | null
+  profile_picture: string
+  email_verified: number
+  role: string
+  created_at: string
+}
+
+export interface AdminProperty {
+  id: number
+  user_id: number
+  title: string
+  category: string
+  property_type: string
+  purpose: string
+  price: number
+  currency: string
+  city: string
+  state: string
+  country: string
+  dp: string
+  approved: number
+  available: number
+  username: string | null
+  created_at: string
+}
+
+export const adminApi = {
+  stats: () => api.get<AdminStats>('/admin/stats'),
+  users: (params: Record<string, unknown>) => api.get<Paginated<AdminUser>>('/admin/users', { params }),
+  setRole: (id: number, role: string) => api.put<AdminUser>(`/admin/users/${id}/role`, { role }),
+  deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
+  properties: (params: Record<string, unknown>) => api.get<Paginated<AdminProperty>>('/admin/properties', { params }),
+  approve: (id: number) => api.put(`/admin/properties/${id}/approve`),
+  reject: (id: number) => api.put(`/admin/properties/${id}/reject`),
+  deleteProperty: (id: number) => api.delete(`/admin/properties/${id}`),
 }
 
 export const categoryLabels: Record<string, string> = {
