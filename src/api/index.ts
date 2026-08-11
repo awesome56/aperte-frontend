@@ -227,6 +227,20 @@ export interface AdminProperty {
   created_at: string
 }
 
+export interface Permission {
+  id: number
+  name: string
+  description: string
+}
+
+export interface Role {
+  id: number
+  name: string
+  description: string | null
+  permissions: string[]
+  created_at: string
+}
+
 export const adminApi = {
   stats: () => api.get<AdminStats>('/admin/stats'),
   users: (params: Record<string, unknown>) => api.get<Paginated<AdminUser>>('/admin/users', { params }),
@@ -236,6 +250,16 @@ export const adminApi = {
   approve: (id: number) => api.put(`/admin/properties/${id}/approve`),
   reject: (id: number) => api.put(`/admin/properties/${id}/reject`),
   deleteProperty: (id: number) => api.delete(`/admin/properties/${id}`),
+  permissions: () => api.get<{ data: Permission[] }>('/admin/permissions'),
+  roles: () => api.get<{ data: Role[] }>('/admin/roles'),
+  createRole: (data: { name: string; description: string }) => api.post<Role>('/admin/roles', data),
+  updateRole: (id: number, data: { name: string; description: string }) => api.put<Role>(`/admin/roles/${id}`, data),
+  deleteRole: (id: number) => api.delete(`/admin/roles/${id}`),
+  setRolePermissions: (id: number, permissions: string[]) => api.put<Role>(`/admin/roles/${id}/permissions`, { permissions }),
+}
+
+export const authApiPermissions = {
+  mine: () => api.get<{ permissions: string[] }>('/auth/permissions'),
 }
 
 export const categoryLabels: Record<string, string> = {

@@ -33,6 +33,9 @@ function logout() {
         <RouterLink to="/admin/properties" class="nav-item" active-class="active">
           <span class="dot" style="background:#b899eb"></span> Properties
         </RouterLink>
+        <RouterLink to="/admin/roles" class="nav-item" active-class="active">
+          <span class="dot" style="background:#adadfb"></span> Roles & Permissions
+        </RouterLink>
       </nav>
 
       <div class="sidebar-bottom">

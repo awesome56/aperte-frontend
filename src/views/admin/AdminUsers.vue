@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { adminApi, type AdminUser } from '@/api'
+import { adminApi, type AdminUser, type Role } from '@/api'
 
 const users = ref<AdminUser[]>([])
+const roles = ref<Role[]>([])
 const meta = ref({ page: 1, pages: 1, total_count: 0, has_next: false, has_prev: false })
 const page = ref(1)
 const search = ref('')
@@ -23,10 +24,20 @@ async function load() {
   }
 }
 
-async function setRole(u: AdminUser, role: string) {
+async function loadRoles() {
   try {
-    await adminApi.setRole(u.id, role)
-    msg.value = `${u.full_name} is now ${role}.`
+    const r = await adminApi.roles()
+    roles.value = r.data.data
+  } catch {
+    roles.value = []
+  }
+}
+
+async function setRole(u: AdminUser, roleName: string) {
+  if (!roleName) return
+  try {
+    await adminApi.setRole(u.id, roleName)
+    msg.value = `${u.full_name} now has role "${roleName}".`
     await load()
   } catch (e: any) {
     err.value = e.response?.data?.error || 'Failed to change role.'
@@ -48,7 +59,10 @@ function fmtDate(s: string) {
   return new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadRoles()
+})
 </script>
 
 <template>
@@ -94,18 +108,16 @@ onMounted(load)
             </span>
           </td>
           <td>
-            <span class="pill" :class="u.role === 'admin' ? 'admin' : 'user'">{{ u.role }}</span>
+            <select
+              class="role-select"
+              :value="u.role"
+              @change="setRole(u, ($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="r in roles" :key="r.id" :value="r.name">{{ r.name }}</option>
+            </select>
           </td>
           <td>{{ fmtDate(u.created_at) }}</td>
           <td class="actions">
-            <button
-              v-if="u.role !== 'admin'"
-              class="btn small"
-              @click="setRole(u, 'admin')"
-            >
-              Make Admin
-            </button>
-            <button v-else class="btn small outline" @click="setRole(u, 'user')">Demote</button>
             <button class="btn small danger" @click="removeUser(u)">Delete</button>
           </td>
         </tr>
@@ -263,6 +275,21 @@ onMounted(load)
 .pill.user {
   background: #f0f0f2;
   color: #555;
+}
+
+.role-select {
+  border: 1.5px solid #e5e5e7;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+.role-select:focus {
+  outline: none;
+  border-color: #0a84ff;
 }
 
 .actions {

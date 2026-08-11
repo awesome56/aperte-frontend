@@ -70,6 +70,11 @@ const router = createRouter({
           name: 'admin-properties',
           component: () => import('../views/admin/AdminProperties.vue'),
         },
+        {
+          path: 'roles',
+          name: 'admin-roles',
+          component: () => import('../views/admin/AdminRoles.vue'),
+        },
       ],
     },
     {
