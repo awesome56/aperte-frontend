@@ -49,6 +49,9 @@ export interface Property {
   owner_full_name?: string
   owner_email?: string
   owner_phone_number?: string | null
+  contact_phone?: string | null
+  contact_email?: string | null
+  contact_website?: string | null
   created_at: string
 }
 

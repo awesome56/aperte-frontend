@@ -62,6 +62,11 @@ const ownerInitials = computed(() => {
     .toUpperCase()
 })
 
+// Prefer the property's own published contact; fall back to the listing owner's.
+const contactPhone = computed(() => property.value?.contact_phone || property.value?.owner_phone_number || '')
+const contactEmail = computed(() => property.value?.contact_email || property.value?.owner_email || '')
+const contactWebsite = computed(() => property.value?.contact_website || '')
+
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
@@ -180,31 +185,32 @@ onMounted(async () => {
           <span class="price">{{ fmtPrice(property.price) }}</span>
           <button v-if="isBookable" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
           <RouterLink
-            v-if="!isOwner && property.owner_email"
-            :to="`mailto:${property.owner_email}?subject=${encodeURIComponent(property.title)}`"
+            v-if="!isOwner && contactEmail"
+            :to="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"
             class="btn btn-outline btn-block"
           >
-            Email Owner
+            Email Contact
           </RouterLink>
           <a
-            v-if="!isOwner && property.owner_phone_number"
-            :href="`tel:${property.owner_phone_number}`"
+            v-if="!isOwner && contactPhone"
+            :href="`tel:${contactPhone}`"
             class="btn btn-primary btn-block"
           >
-            Call Owner
+            Call {{ property.owner_full_name?.split(' ')[0] || 'Contact' }}
           </a>
         </div>
       </div>
 
-      <!-- Owner contact card -->
-      <div v-if="property.owner_email || property.owner_phone_number" class="owner-card">
-        <h3 class="subhead">Contact the Owner</h3>
+      <!-- Contact card -->
+      <div v-if="contactPhone || contactEmail || contactWebsite" class="owner-card">
+        <h3 class="subhead">Contact {{ property.owner_full_name || 'the Listing' }}</h3>
         <div class="owner-info">
           <div class="owner-avatar">{{ ownerInitials }}</div>
           <div class="owner-details">
             <strong>{{ property.owner_full_name || property.username }}</strong>
-            <a v-if="property.owner_phone_number" :href="`tel:${property.owner_phone_number}`">{{ property.owner_phone_number }}</a>
-            <a v-if="property.owner_email" :href="`mailto:${property.owner_email}`">{{ property.owner_email }}</a>
+            <a v-if="contactPhone" :href="`tel:${contactPhone}`">{{ contactPhone }}</a>
+            <a v-if="contactEmail" :href="`mailto:${contactEmail}`">{{ contactEmail }}</a>
+            <a v-if="contactWebsite" :href="contactWebsite" target="_blank" rel="noopener">{{ contactWebsite.replace(/^https?:\/\//, '') }} ↗</a>
           </div>
         </div>
       </div>
