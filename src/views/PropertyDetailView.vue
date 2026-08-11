@@ -62,9 +62,9 @@ const ownerInitials = computed(() => {
     .toUpperCase()
 })
 
-// Prefer the property's own published contact; fall back to the listing owner's.
-const contactPhone = computed(() => property.value?.contact_phone || property.value?.owner_phone_number || '')
-const contactEmail = computed(() => property.value?.contact_email || property.value?.owner_email || '')
+// Only show the property's own published contact. No fallback to owner placeholders.
+const contactPhone = computed(() => property.value?.contact_phone || '')
+const contactEmail = computed(() => property.value?.contact_email || '')
 const contactWebsite = computed(() => property.value?.contact_website || '')
 
 function fmt(n: number | null | undefined) {
