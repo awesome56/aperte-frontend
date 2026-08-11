@@ -122,6 +122,8 @@ export const authApi = {
   resendVerify: (email: string) => api.get(`/auth/resendverify/${email}`),
   forgot: (email: string) => api.get(`/auth/forgotpassword/${email}`),
   reset: (email: string, code: string, new_password: string) => api.post(`/auth/resetpassword/${email}`, { code, new_password }),
+  changePassword: (old_password: string, new_password: string, comfirm_password: string) =>
+    api.post('/auth/changepassword', { old_password, new_password, comfirm_password }),
 }
 
 export const propertyApi = {

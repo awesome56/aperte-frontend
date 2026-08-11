@@ -6,6 +6,7 @@ import {
   roomApi,
   slotApi,
   userApi,
+  authApi,
   type Property,
   type Booking,
   type Room,
@@ -38,6 +39,11 @@ const slotForm = reactive({ date: '', start_time: '', end_time: '', price: 0 })
 // profile
 const profileForm = reactive({ full_name: '', phone_number: '' })
 const dpFile = ref<File | null>(null)
+// change password
+const pwForm = reactive({ old_password: '', new_password: '', comfirm_password: '' })
+const pwMsg = ref('')
+const pwErr = ref('')
+const pwLoading = ref(false)
 
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
@@ -244,6 +250,27 @@ function onDp(e: Event) {
   dpFile.value = (e.target as HTMLInputElement).files?.[0] || null
 }
 
+async function changePassword() {
+  pwMsg.value = ''
+  pwErr.value = ''
+  if (pwForm.new_password !== pwForm.comfirm_password) {
+    pwErr.value = 'New password and confirm password do not match.'
+    return
+  }
+  pwLoading.value = true
+  try {
+    const res = await authApi.changePassword(pwForm.old_password, pwForm.new_password, pwForm.comfirm_password)
+    pwMsg.value = res.data.msg || 'Password changed successfully.'
+    pwForm.old_password = ''
+    pwForm.new_password = ''
+    pwForm.comfirm_password = ''
+  } catch (e: any) {
+    pwErr.value = e.response?.data?.error || 'Failed to change password.'
+  } finally {
+    pwLoading.value = false
+  }
+}
+
 watch(tab, () => {
   msg.value = ''
   err.value = ''
@@ -422,6 +449,27 @@ onMounted(loadAll)
           <input type="file" accept="image/*" class="form-control" @change="onDp" />
         </div>
         <button class="btn btn-primary" @click="saveProfile">Save Profile</button>
+      </div>
+
+      <div class="profile-card pw-card">
+        <h3>Change Password</h3>
+        <p v-if="pwMsg" class="success-text">{{ pwMsg }}</p>
+        <p v-if="pwErr" class="error-text">{{ pwErr }}</p>
+        <div class="form-group">
+          <label>Old Password</label>
+          <input v-model="pwForm.old_password" type="password" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input v-model="pwForm.new_password" type="password" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input v-model="pwForm.comfirm_password" type="password" class="form-control" />
+        </div>
+        <button class="btn btn-primary" :disabled="pwLoading" @click="changePassword">
+          {{ pwLoading ? 'Changing…' : 'Change Password' }}
+        </button>
       </div>
     </div>
   </div>
@@ -763,6 +811,19 @@ onMounted(loadAll)
   background: var(--color-bg-soft);
   border-radius: var(--radius);
   padding: 30px;
+}
+
+.pw-card {
+  margin-top: 30px;
+}
+
+.pw-card h3 {
+  color: var(--color-purple-dark);
+  margin-bottom: 16px;
+}
+
+.pw-card .form-group {
+  margin-bottom: 16px;
 }
 
 .loading {
