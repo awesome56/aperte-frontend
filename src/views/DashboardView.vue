@@ -68,6 +68,13 @@ async function selectProperty(id: number) {
   rooms.value = []
   slots.value = []
   propertyBookings.value = []
+  // fetch full detail so images[] is available for management
+  try {
+    const detail = await propertyApi.get(id)
+    selected.value = detail.data
+  } catch {
+    // fall back to the list item if detail fetch fails
+  }
   const cat = selected.value.category
   if (cat === 'hotel') {
     const r = await roomApi.list(id)
@@ -107,6 +114,74 @@ async function deleteRoom(id: number) {
     await selectProperty(selected.value!.id)
   } catch (e: any) {
     err.value = e.response?.data?.error || 'Failed to delete room.'
+  }
+}
+
+async function uploadRoomImages(roomId: number, e: Event) {
+  const files = Array.from((e.target as HTMLInputElement).files || [])
+  if (!files.length) return
+  try {
+    await roomApi.uploadImages(roomId, files)
+    msg.value = 'Room images uploaded.'
+    await selectProperty(selected.value!.id)
+  } catch (e2: any) {
+    err.value = e2.response?.data?.error || 'Failed to upload room images.'
+  } finally {
+    ;(e.target as HTMLInputElement).value = ''
+  }
+}
+
+async function deleteRoomImage(id: number) {
+  try {
+    await roomApi.deleteImage(id)
+    msg.value = 'Room image deleted.'
+    await selectProperty(selected.value!.id)
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to delete room image.'
+  }
+}
+
+async function setRoomDp(roomId: number, imageId: number) {
+  try {
+    await roomApi.setDp(imageId)
+    msg.value = 'Room display picture updated.'
+    await selectProperty(selected.value!.id)
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to set room display picture.'
+  }
+}
+
+async function uploadPropertyImages(e: Event) {
+  const files = Array.from((e.target as HTMLInputElement).files || [])
+  if (!files.length || !selected.value) return
+  try {
+    await propertyApi.uploadImages(selected.value.id, files)
+    msg.value = 'Property photos uploaded.'
+    await selectProperty(selected.value.id)
+  } catch (e2: any) {
+    err.value = e2.response?.data?.error || 'Failed to upload property photos.'
+  } finally {
+    ;(e.target as HTMLInputElement).value = ''
+  }
+}
+
+async function setPropertyDp(imageId: number) {
+  try {
+    await propertyApi.setDp(imageId)
+    msg.value = 'Display picture updated.'
+    await selectProperty(selected.value!.id)
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to set display picture.'
+  }
+}
+
+async function deletePropertyImage(imageId: number) {
+  try {
+    await propertyApi.deleteImage(imageId)
+    msg.value = 'Photo deleted.'
+    await selectProperty(selected.value!.id)
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to delete photo.'
   }
 }
 
@@ -221,9 +296,25 @@ onMounted(loadAll)
           <div v-if="selected.category === 'hotel'" class="manage-block">
             <h3>Rooms</h3>
             <div v-if="rooms.length" class="mini-list">
-              <div v-for="r in rooms" :key="r.id" class="mini-row">
-                <span>{{ r.room_type }} — {{ formatPrice(r.price, selected?.currency) }}/night ({{ r.beds }} bed{{ r.beds > 1 ? 's' : '' }})</span>
-                <button class="btn btn-danger btn-sm" @click="deleteRoom(r.id)">Delete</button>
+              <div v-for="r in rooms" :key="r.id" class="mini-row room-manage">
+                <div class="room-manage-main">
+                  <div class="room-thumbs">
+                    <div v-for="img in (r.images || [])" :key="img.id" class="room-thumb" :class="{ active: img.dp === 1 }">
+                      <img :src="img.image_url" :alt="r.room_type" />
+                      <button class="thumb-dp" title="Set as display picture" @click="setRoomDp(r.id, img.id)">★</button>
+                      <button class="thumb-del" title="Delete image" @click="deleteRoomImage(img.id)">×</button>
+                    </div>
+                  </div>
+                  <div class="room-manage-info">
+                    <RouterLink :to="`/rooms/${r.id}`"><strong>{{ r.room_type }}</strong></RouterLink>
+                    <span>{{ formatPrice(r.price, selected?.currency) }}/night ({{ r.beds }} bed{{ r.beds > 1 ? 's' : '' }})</span>
+                    <label class="file-btn">
+                      Upload Images
+                      <input type="file" accept="image/*" multiple @change="(e) => uploadRoomImages(r.id, e)" />
+                    </label>
+                  </div>
+                </div>
+                <button class="btn btn-danger btn-sm" @click="deleteRoom(r.id)">Delete Room</button>
               </div>
             </div>
             <p v-else class="empty">No rooms.</p>
@@ -252,6 +343,26 @@ onMounted(loadAll)
               <input v-model.number="slotForm.price" type="number" min="0" placeholder="Price" />
               <button class="btn btn-primary btn-sm" @click="addSlot">Add Slot</button>
             </div>
+          </div>
+
+          <!-- Property photos -->
+          <div v-if="selected.images?.length" class="manage-block">
+            <h3>Property Photos ({{ selected.images.length }}/5)</h3>
+            <div class="prop-photos">
+              <div v-for="img in selected.images" :key="img.id" class="prop-photo" :class="{ active: img.dp === 1 }">
+                <img :src="img.image_url" alt="" />
+                <span v-if="img.dp === 1" class="photo-dp">Display</span>
+                <button v-else class="photo-set" title="Set as display picture" @click="setPropertyDp(img.id)">Set as Display</button>
+                <button class="photo-del" title="Delete image" @click="deletePropertyImage(img.id)">×</button>
+              </div>
+            </div>
+          </div>
+          <div class="manage-block">
+            <h3>Add Property Photos (max 5 total)</h3>
+            <label class="file-btn">
+              Upload Photos
+              <input type="file" accept="image/*" multiple @change="uploadPropertyImages" />
+            </label>
           </div>
 
           <!-- Bookings for this property -->
@@ -482,6 +593,169 @@ onMounted(loadAll)
 .btn-danger {
   background: var(--color-danger);
   color: #fff;
+}
+
+/* room management */
+.room-manage {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.room-manage-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.room-thumbs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.room-thumb {
+  position: relative;
+  width: 88px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+
+.room-thumb.active {
+  border-color: var(--color-primary);
+}
+
+.room-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb-dp {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffd700;
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.thumb-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(220, 20, 20, 0.85);
+  color: #fff;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.room-manage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.room-manage-info a {
+  color: var(--color-dark);
+}
+
+.room-manage-info a:hover {
+  color: var(--color-primary);
+}
+
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 6px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 8px;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.file-btn input {
+  display: none;
+}
+
+/* property photos */
+.prop-photos {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.prop-photo {
+  position: relative;
+  width: 140px;
+  height: 100px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+
+.prop-photo.active {
+  border-color: var(--color-primary);
+}
+
+.prop-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-dp {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.7rem;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 3px;
+}
+
+.photo-set {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border: none;
+  font-size: 0.7rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.photo-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(220, 20, 20, 0.85);
+  color: #fff;
+  cursor: pointer;
 }
 
 .profile-card {

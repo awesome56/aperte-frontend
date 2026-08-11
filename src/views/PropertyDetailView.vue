@@ -120,6 +120,12 @@ onMounted(async () => {
       const s = await slotApi.list(id)
       slots.value = s.data.data.filter((x) => x.status === 'available')
     }
+    // If arrived from a room detail page with ?room=<id>, open booking with that room preselected
+    const roomId = Number(route.query.room)
+    if (roomId && rooms.value.some((x) => x.id === roomId)) {
+      bookingForm.value.room_id = roomId
+      bookingOpen.value = true
+    }
   } catch (e: any) {
     error.value = e.response?.data?.error || e.response?.data?.message || 'Property not found.'
   } finally {
@@ -221,14 +227,18 @@ onMounted(async () => {
       <div v-if="property.category === 'hotel'" class="block">
         <h3 class="subhead">Rooms</h3>
         <div v-if="rooms.length" class="rooms">
-          <div v-for="r in rooms" :key="r.id" class="room">
-            <div>
+          <RouterLink v-for="r in rooms" :key="r.id" :to="`/rooms/${r.id}`" class="room">
+            <div class="room-thumb">
+              <img v-if="r.images?.[0]" :src="r.images[0].image_url" :alt="r.room_type" />
+              <div v-else class="thumb-placeholder">{{ r.room_type }}</div>
+            </div>
+            <div class="room-info">
               <strong>{{ r.room_type }}</strong>
               <span class="room-meta">{{ r.beds }} bed · {{ r.available ? 'Available' : 'Unavailable' }}</span>
+              <span class="room-price">{{ formatPrice(r.price, property.currency) }}/night</span>
             </div>
-            <span class="room-price">{{ formatPrice(r.price, property.currency) }}/night</span>
-            <button v-if="isBookable" class="btn btn-primary btn-sm" @click="bookingForm.room_id = r.id; startBooking()">Book</button>
-          </div>
+            <span class="view-link">View Room →</span>
+          </RouterLink>
         </div>
         <p v-else class="empty">No rooms added yet.</p>
       </div>
@@ -488,6 +498,49 @@ onMounted(async () => {
   border: 1.5px solid var(--color-border);
   border-radius: 12px;
   padding: 16px 18px;
+  color: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.room:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow);
+}
+
+.room-thumb {
+  width: 90px;
+  height: 66px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.room-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg-soft);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.room-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.view-link {
+  color: var(--color-primary);
+  font-weight: 500;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .room-meta {
@@ -499,6 +552,7 @@ onMounted(async () => {
 .room-price {
   font-weight: 600;
   color: var(--color-primary);
+  font-size: 0.9rem;
 }
 
 .empty {

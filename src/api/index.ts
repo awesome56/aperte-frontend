@@ -38,7 +38,7 @@ export interface Property {
   logitude?: number | null
   year_built?: number | null
   amenities: Record<string, unknown>
-  images: { id: number; image_url: string; created_at: string }[]
+  images: { id: number; image_url: string; dp?: number; created_at: string }[]
   videos: { id: number; video_url: string; created_at: string }[]
   negotiable: number
   available: number
@@ -76,6 +76,14 @@ export interface Booking {
   created_at: string
 }
 
+export interface RoomImage {
+  id: number
+  image_url: string
+  dp: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Room {
   id: number
   property_id: number
@@ -84,6 +92,7 @@ export interface Room {
   price: number
   amenities: Record<string, unknown>
   available: number
+  images: RoomImage[]
 }
 
 export interface Slot {
@@ -125,6 +134,7 @@ export const propertyApi = {
   },
   deleteImage: (id: number) => api.delete(`/properties/images/${id}`),
   deleteVideo: (id: number) => api.delete(`/properties/videos/${id}`),
+  setDp: (id: number) => api.put(`/properties/images/${id}/dp`),
 }
 
 export const bookingApi = {
@@ -137,9 +147,17 @@ export const bookingApi = {
 
 export const roomApi = {
   list: (propertyId: number) => api.get<{ data: Room[] }>(`/rooms/property/${propertyId}`),
+  get: (id: number) => api.get<Room>(`/rooms/${id}`),
   create: (propertyId: number, data: Record<string, unknown>) => api.post<Room>(`/rooms/property/${propertyId}`, data),
   update: (id: number, data: Record<string, unknown>) => api.put<Room>(`/rooms/${id}`, data),
   delete: (id: number) => api.delete(`/rooms/${id}`),
+  uploadImages: (id: number, files: File[]) => {
+    const fd = new FormData()
+    files.forEach((f) => fd.append('file', f))
+    return api.post(`/rooms/${id}/images`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  deleteImage: (id: number) => api.delete(`/rooms/images/${id}`),
+  setDp: (id: number) => api.put(`/rooms/images/${id}/dp`),
 }
 
 export const slotApi = {
