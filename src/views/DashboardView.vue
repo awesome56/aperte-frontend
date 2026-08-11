@@ -278,7 +278,7 @@ onMounted(loadAll)
         <div v-else class="prop-list">
           <div v-for="p in properties" :key="p.id" class="prop-row" :class="{ active: selected?.id === p.id }">
             <div class="prop-info" @click="selectProperty(p.id)">
-              <img v-if="p.images?.[0]" :src="p.images[0].image_url" alt="" class="thumb" />
+              <img v-if="p.dp || p.images?.[0]" :src="p.dp || p.images?.[0]?.image_url" alt="" class="thumb" />
               <div class="placeholder" v-else></div>
               <div>
                 <strong>{{ p.title }}</strong>

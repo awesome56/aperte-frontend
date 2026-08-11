@@ -6,6 +6,8 @@ import { categoryLabels, purposeLabels, formatPrice } from '@/api'
 const props = defineProps<{ property: Property }>()
 
 const dpImage = computed(() => {
+  // browse/list responses provide a ready `dp` URL; fall back to the images array
+  if (props.property.dp) return props.property.dp
   const imgs = props.property.images || []
   const dp = imgs.find((i: any) => i.dp === 1)
   return dp?.image_url || imgs[0]?.image_url || ''

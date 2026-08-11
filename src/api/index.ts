@@ -39,6 +39,7 @@ export interface Property {
   year_built?: number | null
   amenities: Record<string, unknown>
   images: { id: number; image_url: string; dp?: number; created_at: string }[]
+  dp?: string
   videos: { id: number; video_url: string; created_at: string }[]
   negotiable: number
   available: number
