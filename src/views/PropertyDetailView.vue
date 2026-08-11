@@ -52,6 +52,16 @@ const isBookable = computed(() =>
 
 const isOwner = computed(() => property.value?.user_id === auth.user?.id)
 
+const ownerInitials = computed(() => {
+  const name = property.value?.owner_full_name || property.value?.username || ''
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+})
+
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
@@ -169,7 +179,33 @@ onMounted(async () => {
         <div class="price-box">
           <span class="price">{{ fmtPrice(property.price) }}</span>
           <button v-if="isBookable" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
-          <RouterLink v-else-if="!isOwner" :to="`mailto:?subject=${encodeURIComponent(property.title)}`" class="btn btn-outline btn-block">Contact Owner</RouterLink>
+          <RouterLink
+            v-if="!isOwner && property.owner_email"
+            :to="`mailto:${property.owner_email}?subject=${encodeURIComponent(property.title)}`"
+            class="btn btn-outline btn-block"
+          >
+            Email Owner
+          </RouterLink>
+          <a
+            v-if="!isOwner && property.owner_phone_number"
+            :href="`tel:${property.owner_phone_number}`"
+            class="btn btn-primary btn-block"
+          >
+            Call Owner
+          </a>
+        </div>
+      </div>
+
+      <!-- Owner contact card -->
+      <div v-if="property.owner_email || property.owner_phone_number" class="owner-card">
+        <h3 class="subhead">Contact the Owner</h3>
+        <div class="owner-info">
+          <div class="owner-avatar">{{ ownerInitials }}</div>
+          <div class="owner-details">
+            <strong>{{ property.owner_full_name || property.username }}</strong>
+            <a v-if="property.owner_phone_number" :href="`tel:${property.owner_phone_number}`">{{ property.owner_phone_number }}</a>
+            <a v-if="property.owner_email" :href="`mailto:${property.owner_email}`">{{ property.owner_email }}</a>
+          </div>
         </div>
       </div>
 
@@ -432,6 +468,59 @@ onMounted(async () => {
   font-size: 1.25rem;
   color: var(--color-purple-dark);
   margin-bottom: 16px;
+}
+
+.owner-card {
+  background: var(--color-bg-soft);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 36px;
+}
+
+.owner-card .subhead {
+  margin-bottom: 14px;
+}
+
+.owner-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.owner-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.owner-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.owner-details strong {
+  color: var(--color-purple-dark);
+  font-size: 1.05rem;
+}
+
+.owner-details a {
+  color: var(--color-primary);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.owner-details a:hover {
+  text-decoration: underline;
 }
 
 .block {

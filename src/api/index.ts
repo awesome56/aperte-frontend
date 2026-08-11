@@ -46,6 +46,9 @@ export interface Property {
   approved: number
   average_rating: number | null
   username: string
+  owner_full_name?: string
+  owner_email?: string
+  owner_phone_number?: string | null
   created_at: string
 }
 
