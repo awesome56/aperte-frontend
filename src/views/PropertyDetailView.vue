@@ -196,14 +196,14 @@ onMounted(async () => {
             :href="`tel:${contactPhone}`"
             class="btn btn-primary btn-block"
           >
-            Call {{ property.owner_full_name?.split(' ')[0] || 'Contact' }}
+            Call Now
           </a>
         </div>
       </div>
 
       <!-- Contact card -->
       <div v-if="contactPhone || contactEmail || contactWebsite" class="owner-card">
-        <h3 class="subhead">Contact {{ property.owner_full_name || 'the Listing' }}</h3>
+        <h3 class="subhead">Contact {{ property.title }}</h3>
         <div class="owner-info">
           <div class="owner-avatar">{{ ownerInitials }}</div>
           <div class="owner-details">

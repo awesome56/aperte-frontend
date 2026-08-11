@@ -28,6 +28,10 @@ const purpose = computed(() => purposeLabels[props.property.purpose] || props.pr
       <span class="price">{{ formatPrice(property.price, property.currency) }}</span>
       <h3 class="title"><RouterLink :to="`/properties/${property.id}`">{{ property.title }}</RouterLink></h3>
       <p class="loc">{{ property.location }}, {{ property.city }}, {{ property.state }}</p>
+      <div v-if="property.contact_phone || property.contact_email" class="contacts">
+        <a v-if="property.contact_phone" :href="`tel:${property.contact_phone}`">{{ property.contact_phone }}</a>
+        <a v-if="property.contact_email" :href="`mailto:${property.contact_email}`">{{ property.contact_email }}</a>
+      </div>
       <div class="meta">
         <span v-if="property.bedrooms != null">{{ property.bedrooms }} Beds</span>
         <span v-if="property.bathrooms != null">{{ property.bathrooms }} Bath</span>
@@ -66,5 +70,8 @@ const purpose = computed(() => purposeLabels[props.property.purpose] || props.pr
 .title a { color: var(--clr-dark); }
 .title a:hover { color: var(--clr-blue); }
 .loc { color: var(--clr-muted); font-size: 1rem; margin-bottom: 12px; }
+.contacts { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.contacts a { color: var(--clr-blue); font-size: 0.85rem; }
+.contacts a:hover { text-decoration: underline; }
 .meta { display: flex; gap: 18px; color: var(--clr-dark); font-size: 1rem; font-weight: 400; }
 </style>
