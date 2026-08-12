@@ -36,6 +36,9 @@ function logout() {
         <RouterLink to="/admin/properties" class="nav-item" active-class="active">
           <span class="dot" style="background:#b899eb"></span> Properties
         </RouterLink>
+        <RouterLink v-if="auth.isAdmin || auth.isStaff" to="/admin/claims" class="nav-item" active-class="active">
+          <span class="dot" style="background:#64d2ff"></span> Claims
+        </RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin/roles" class="nav-item" active-class="active">
           <span class="dot" style="background:#adadfb"></span> Roles & Permissions
         </RouterLink>

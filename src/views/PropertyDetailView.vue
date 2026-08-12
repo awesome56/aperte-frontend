@@ -133,6 +133,36 @@ function callOwner(type: 'audio' | 'video') {
 }
 */
 
+// ---- claim property (admin-listed listings) ----
+
+const claimStatus = ref<string | null>(null)
+const claimMsg = ref('')
+const claimErr = ref('')
+const claiming = ref(false)
+
+async function claimProperty() {
+  if (!property.value) return
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+  claiming.value = true
+  claimMsg.value = ''
+  claimErr.value = ''
+  try {
+    const res = await propertyApi.claim(property.value.id)
+    claimStatus.value = res.data.claim.status
+    claimMsg.value = res.data.message
+    import('@/analytics/tracker').then((m) =>
+      m.default.trackEvent('property_claim', 'conversion', { property_id: property.value!.id }),
+    )
+  } catch (e: any) {
+    claimErr.value = e.response?.data?.error || 'Failed to claim property.'
+  } finally {
+    claiming.value = false
+  }
+}
+
 async function submitBooking() {
   bookingSubmitting.value = true
   bookingErr.value = ''
@@ -176,6 +206,7 @@ onMounted(async () => {
   try {
     const res = await propertyApi.get(id)
     property.value = res.data
+    claimStatus.value = res.data.claim_status || null
     favoritesCount.value = res.data.favorites_count || 0
     if (auth.isAuthenticated) {
       try {
@@ -263,6 +294,30 @@ onMounted(async () => {
             <button class="btn btn-outline btn-block" @click="callOwner('video')">Video Call</button>
           </div>
           -->
+
+          <!-- Claim admin-listed property -->
+          <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
+            <template v-if="!claimStatus">
+              <p class="claim-note">This listing was posted by the site admin and is available to be claimed.</p>
+              <button class="btn btn-primary btn-block" :disabled="claiming" @click="claimProperty">
+                {{ claiming ? 'Submitting…' : 'Claim This Property' }}
+              </button>
+            </template>
+            <p v-else-if="claimStatus === 'pending'" class="claim-status pending">
+              Your claim is pending review by the admin.
+            </p>
+            <p v-else-if="claimStatus === 'approved'" class="claim-status approved">
+              You own this property.
+            </p>
+            <p v-else-if="claimStatus === 'rejected'" class="claim-status rejected">
+              Your previous claim was declined. You can try again.
+              <button class="btn btn-outline btn-sm" :disabled="claiming" @click="claimProperty">
+                {{ claiming ? 'Submitting…' : 'Claim Again' }}
+              </button>
+            </p>
+            <p v-if="claimMsg" class="claim-status approved">{{ claimMsg }}</p>
+            <p v-if="claimErr" class="claim-status rejected">{{ claimErr }}</p>
+          </div>
           <RouterLink
             v-if="!isOwner && contactEmail"
             :to="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"
@@ -544,6 +599,38 @@ onMounted(async () => {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.claim-box {
+  border: 1.5px dashed var(--color-primary);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+  background: var(--color-bg-blue);
+}
+
+.claim-note {
+  font-size: 0.85rem;
+  color: var(--color-primary);
+  margin-bottom: 10px;
+}
+
+.claim-status {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.claim-status.pending {
+  color: #b7791f;
+}
+
+.claim-status.approved {
+  color: #1a7f37;
+}
+
+.claim-status.rejected {
+  color: #d0342c;
 }
 
 .price {

@@ -48,6 +48,8 @@ export interface Property {
   views?: number
   favorites_count?: number
   favorited?: boolean
+  owner_is_admin?: boolean
+  claim_status?: string | null
   average_rating: number | null
   username: string
   owner_full_name?: string
@@ -199,6 +201,7 @@ export const propertyApi = {
   deleteImage: (id: number) => api.delete(`/properties/images/${id}`),
   deleteVideo: (id: number) => api.delete(`/properties/videos/${id}`),
   setDp: (id: number) => api.put(`/properties/images/${id}/dp`),
+  claim: (id: number) => api.post<{ message: string; claim: { id: number; status: string } }>(`/properties/${id}/claim`),
 }
 
 export const bookingApi = {
@@ -561,9 +564,34 @@ export interface Role {
   created_at: string
 }
 
+export interface PropertyClaim {
+  id: number
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+  updated_at: string
+  property: {
+    id: number
+    title: string
+    price: number | null
+    currency: string | null
+    city: string | null
+    state: string | null
+    dp: string
+  }
+  user: {
+    id: number
+    username: string | null
+    full_name: string | null
+    email: string | null
+  }
+}
+
 export const adminApi = {
   stats: () => api.get<AdminStats>('/admin/stats'),
   analytics: () => api.get<AdminAnalytics>('/admin/analytics'),
+  claims: (params?: Record<string, unknown>) => api.get<Paginated<PropertyClaim>>('/admin/claims', { params }),
+  claimDecision: (id: number, approved: boolean) =>
+    api.put<{ message: string }>(`/admin/claims/${id}`, { approved }),
   analyticsOverview: (params: AnalyticsRange) => api.get<AnalyticsOverview>('/admin/insights/overview', { params }),
   analyticsTraffic: (params: AnalyticsRange & { group?: string }) => api.get('/admin/insights/traffic', { params }),
   analyticsContent: (params: AnalyticsRange) => api.get<AnalyticsContent>('/admin/insights/content', { params }),

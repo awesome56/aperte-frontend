@@ -108,6 +108,12 @@ const router = createRouter({
           meta: { requiresPermission: 'properties.view' },
         },
         {
+          path: 'claims',
+          name: 'admin-claims',
+          component: () => import('../views/admin/AdminClaims.vue'),
+          meta: { requiresPermission: 'properties.approve' },
+        },
+        {
           path: 'roles',
           name: 'admin-roles',
           component: () => import('../views/admin/AdminRoles.vue'),
