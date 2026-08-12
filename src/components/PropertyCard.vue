@@ -67,8 +67,6 @@ async function toggleFavorite(e: Event) {
       <div class="meta">
         <span v-if="property.bedrooms != null">{{ property.bedrooms }} Beds</span>
         <span v-if="property.bathrooms != null">{{ property.bathrooms }} Bath</span>
-        <span class="views" v-if="property.views">{{ property.views }} views</span>
-        <span class="fav-count" v-if="favoritesCount">{{ favoritesCount }} ♥</span>
       </div>
     </div>
   </div>

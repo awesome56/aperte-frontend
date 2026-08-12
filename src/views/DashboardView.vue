@@ -318,6 +318,9 @@ onMounted(loadAll)
               <div>
                 <strong>{{ p.title }}</strong>
                 <span class="meta">{{ p.city }}, {{ p.state }} · {{ formatPrice(p.price, p.currency) }} · {{ p.category }}</span>
+                <span class="meta stats" v-if="p.views != null || p.favorites_count != null">
+                  {{ p.views != null ? p.views + ' views' : '' }}<template v-if="p.views != null && p.favorites_count != null"> · </template>{{ p.favorites_count != null ? p.favorites_count + ' ♥' : '' }}
+                </span>
               </div>
             </div>
             <RouterLink :to="`/properties/${p.id}`" class="btn btn-outline btn-sm">View</RouterLink>
