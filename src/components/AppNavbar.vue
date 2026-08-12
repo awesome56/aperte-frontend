@@ -116,20 +116,18 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
       </div>
     </div>
 
-    <!-- Mobile menu -->
+    <!-- Mobile menu (drawer) -->
     <Teleport to="body">
       <div v-if="menuOpen" class="mobile-menu-backdrop" @click="closeMenu"></div>
       <div v-if="menuOpen" class="mobile-menu">
-        <RouterLink to="/" @click="closeMenu">Home</RouterLink>
-        <RouterLink to="/listings?purpose=sale" @click="closeMenu">Buy</RouterLink>
-        <RouterLink to="/listings?purpose=rent" @click="closeMenu">Rent</RouterLink>
-        <RouterLink to="/listings?category=shortlet" @click="closeMenu">Shortlets</RouterLink>
-        <RouterLink to="/listings?category=hotel" @click="closeMenu">Hotels</RouterLink>
-        <RouterLink to="/listings?category=land" @click="closeMenu">Land</RouterLink>
-        <RouterLink to="/listings?category=event_center" @click="closeMenu">Venues</RouterLink>
-        <RouterLink to="/browse-requests" @click="closeMenu">Property Requests</RouterLink>
-
         <template v-if="auth.isAuthenticated">
+          <div class="menu-user">
+            <div class="avatar">{{ initials }}</div>
+            <div>
+              <strong>{{ auth.user?.full_name || auth.user?.username }}</strong>
+              <span>@{{ auth.user?.username }}</span>
+            </div>
+          </div>
           <div class="menu-sep"></div>
           <RouterLink to="/dashboard" @click="closeMenu">Dashboard</RouterLink>
           <RouterLink to="/messages" @click="closeMenu">
@@ -140,9 +138,27 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
           <RouterLink to="/favorites" @click="closeMenu">Favorites</RouterLink>
           <RouterLink v-if="auth.isStaff" to="/admin" @click="closeMenu">Admin</RouterLink>
         </template>
-        <template v-else>
+
+        <div class="menu-sep"></div>
+        <RouterLink to="/" @click="closeMenu">Home</RouterLink>
+        <RouterLink to="/listings?purpose=sale" @click="closeMenu">Buy</RouterLink>
+        <RouterLink to="/listings?purpose=rent" @click="closeMenu">Rent</RouterLink>
+        <RouterLink to="/listings?category=shortlet" @click="closeMenu">Shortlets</RouterLink>
+        <RouterLink to="/listings?category=hotel" @click="closeMenu">Hotels</RouterLink>
+        <RouterLink to="/listings?category=land" @click="closeMenu">Land</RouterLink>
+        <RouterLink to="/listings?category=event_center" @click="closeMenu">Venues</RouterLink>
+        <RouterLink to="/browse-requests" @click="closeMenu">Property Requests</RouterLink>
+
+        <template v-if="!auth.isAuthenticated">
           <div class="menu-sep"></div>
-          <RouterLink to="/login" @click="closeMenu">Login / Register</RouterLink>
+          <RouterLink to="/login" @click="closeMenu">Login</RouterLink>
+          <RouterLink to="/register" @click="closeMenu">Register</RouterLink>
+          <RouterLink to="/add-listing" @click="closeMenu">Add Listing</RouterLink>
+        </template>
+
+        <template v-if="auth.isAuthenticated">
+          <div class="menu-sep"></div>
+          <button class="menu-logout" @click="logout">Logout</button>
         </template>
       </div>
     </Teleport>
@@ -304,6 +320,35 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.menu-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px 10px;
+}
+
+.menu-user strong {
+  display: block;
+  color: var(--clr-dark, #1c1c1c);
+}
+
+.menu-user span {
+  color: var(--clr-muted, #888);
+  font-size: 0.82rem;
+}
+
+.menu-logout {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 13px 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #d0342c;
+  cursor: pointer;
 }
 
 .mobile-menu a:hover,
