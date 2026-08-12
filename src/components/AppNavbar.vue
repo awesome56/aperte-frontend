@@ -44,23 +44,48 @@ const initials = computed(() => {
 })
 
 const menuOpen = ref(false)
+const accountOpen = ref(false)
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
+  if (menuOpen.value) accountOpen.value = false
+}
+
+function toggleAccount() {
+  accountOpen.value = !accountOpen.value
+  if (accountOpen.value) menuOpen.value = false
 }
 
 function closeMenu() {
   menuOpen.value = false
 }
 
+function closeAccount() {
+  accountOpen.value = false
+}
+
+function goDashboard() {
+  accountOpen.value = false
+  router.push('/dashboard')
+}
+
+function goCreateRequest() {
+  accountOpen.value = false
+  router.push('/create-request')
+}
+
 function logout() {
   menuOpen.value = false
+  accountOpen.value = false
   auth.logout()
   router.push('/')
 }
 
-// close the mobile menu on navigation
-watch(() => router.currentRoute.value.fullPath, closeMenu)
+// close menus on navigation
+watch(() => router.currentRoute.value.fullPath, () => {
+  closeMenu()
+  closeAccount()
+})
 </script>
 
 <template>
@@ -98,15 +123,30 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
         </template>
         <template v-else>
-          <RouterLink v-if="auth.isStaff" to="/admin" class="login-link">Admin</RouterLink>
-          <RouterLink to="/messages" class="login-link msg-link">
-            Messages
+          <!-- Messages icon with unread badge -->
+          <RouterLink to="/messages" class="icon-link msg-icon" :title="'Messages'">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
             <span v-if="unread" class="unread-dot">{{ unread > 99 ? '99+' : unread }}</span>
           </RouterLink>
-          <RouterLink to="/favorites" class="login-link">Favorites</RouterLink>
-          <RouterLink to="/dashboard" class="avatar" :title="auth.user?.full_name">{{ initials }}</RouterLink>
+
+          <!-- Avatar with dropdown -->
+          <div class="account">
+            <button class="avatar" :class="{ open: accountOpen }" :aria-expanded="accountOpen" :aria-label="`Account menu for ${auth.user?.full_name || auth.user?.username}`" @click="toggleAccount">
+              {{ initials }}
+            </button>
+            <div v-if="accountOpen" class="account-menu" role="menu">
+              <div class="account-user">
+                <strong>{{ auth.user?.full_name || auth.user?.username }}</strong>
+                <span>@{{ auth.user?.username }}</span>
+              </div>
+              <button class="account-item" role="menuitem" @click="goDashboard">Dashboard</button>
+              <button class="account-item" role="menuitem" @click="goCreateRequest">Create Request</button>
+              <div class="account-sep"></div>
+              <button class="account-item logout" role="menuitem" @click="logout">Logout</button>
+            </div>
+          </div>
+
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
-          <button class="logout-btn" @click="logout">Logout</button>
         </template>
 
         <!-- Hamburger (mobile only) -->
@@ -136,7 +176,6 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
           </RouterLink>
           <RouterLink to="/create-request" @click="closeMenu">Post a Request</RouterLink>
           <RouterLink to="/favorites" @click="closeMenu">Favorites</RouterLink>
-          <RouterLink v-if="auth.isStaff" to="/admin" @click="closeMenu">Admin</RouterLink>
         </template>
 
         <div class="menu-sep"></div>
@@ -217,7 +256,101 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
   font-weight: 700;
 }
 
-.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--clr-blue2); color:#fff; display:grid; place-items:center; font-weight:600; font-size:.85rem; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--clr-blue2); color:#fff; display:grid; place-items:center; font-weight:600; font-size:.85rem; cursor: pointer; border: 2px solid transparent; }
+.avatar.open { border-color: var(--clr-blue2, #0a84ff); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15); }
+
+/* messages icon link */
+.icon-link {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--clr-dark, #1c1c1c);
+}
+
+.icon-link:hover {
+  background: #f0f2f6;
+  color: var(--clr-blue, #0a84ff);
+}
+
+/* avatar dropdown */
+.account {
+  position: relative;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 300;
+  min-width: 210px;
+  background: #fff;
+  border: 1px solid #e8ecf3;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(16, 30, 60, 0.14);
+  padding: 8px;
+  animation: drop-in 0.15s ease;
+}
+
+@keyframes drop-in {
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.account-user {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-bottom: 1px solid #f0f1f3;
+  margin-bottom: 6px;
+}
+
+.account-user strong {
+  color: var(--clr-dark, #1c1c1c);
+  font-size: 0.92rem;
+}
+
+.account-user span {
+  color: var(--clr-muted, #888);
+  font-size: 0.78rem;
+}
+
+.account-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--clr-dark, #333);
+  cursor: pointer;
+}
+
+.account-item:hover {
+  background: #f0f4ff;
+  color: var(--clr-blue, #0a84ff);
+}
+
+.account-item.logout {
+  color: #d0342c;
+}
+
+.account-item.logout:hover {
+  background: #ffeceb;
+  color: #d0342c;
+}
+
+.account-sep {
+  height: 1px;
+  background: #f0f1f3;
+  margin: 6px 0;
+}
 .logout-btn { background:none; border:none; font-size:.9rem; color:var(--clr-muted); cursor:pointer; }
 .logout-btn:hover { color: var(--clr-red); }
 
