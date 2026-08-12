@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppNavbar from '@/components/AppNavbar.vue'
 import AppFooter from '@/components/AppFooter.vue'
+import CallOverlay from '@/components/CallOverlay.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -23,6 +24,7 @@ onMounted(() => {
       <RouterView />
     </main>
     <AppFooter v-if="!isAdminArea" />
+    <CallOverlay />
   </div>
 </template>
 

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { messageApi, type Conversation, type Message } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { startStream, stopStream, unreadCount, on as onStreamEvent } from '@/messaging/stream'
+import { callManager } from '@/calls/callManager'
 
 const route = useRoute()
 const router = useRouter()
@@ -299,7 +300,7 @@ onUnmounted(() => {
         <template v-if="threadUser">
           <header class="chat-head">
             <div class="avatar">{{ initialsOf(threadUser.full_name || threadUser.username) }}</div>
-            <div>
+            <div class="head-info">
               <strong class="with-presence">
                 {{ threadUser.full_name || threadUser.username }}
                 <i class="presence" :class="{ on: threadUser.online }"></i>
@@ -308,6 +309,14 @@ onUnmounted(() => {
                 @{{ threadUser.username }}
                 · {{ threadUser.online ? 'Online' : `Last seen ${lastSeenText(threadUser.last_seen)}` }}
               </span>
+            </div>
+            <div class="head-actions">
+              <button class="call-btn" title="Voice call" @click="callManager.startCall(threadUser.id, 'audio')">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2z"/></svg>
+              </button>
+              <button class="call-btn" title="Video call" @click="callManager.startCall(threadUser.id, 'video')">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+              </button>
             </div>
           </header>
 
@@ -547,6 +556,34 @@ onUnmounted(() => {
   display: block;
   color: var(--color-muted);
   font-size: 0.8rem;
+}
+
+.head-info {
+  flex: 1;
+}
+
+.head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.call-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: var(--color-bg-blue);
+  color: var(--color-primary);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.call-btn:hover {
+  transform: scale(1.08);
+  background: var(--color-primary);
+  color: #fff;
 }
 
 .context-banner {

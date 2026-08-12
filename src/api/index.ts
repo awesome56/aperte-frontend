@@ -289,6 +289,32 @@ export interface MessageThread {
   meta: Paginated<Message>['meta']
 }
 
+export interface CallUser {
+  id: number
+  username: string
+  full_name: string
+  profile_picture: string
+}
+
+export interface Call {
+  id: string
+  caller: CallUser | null
+  callee: CallUser | null
+  call_type: 'audio' | 'video'
+  status: 'ringing' | 'active' | 'ended' | 'declined' | 'missed'
+  started_at: string | null
+  ended_at: string | null
+  ended_by: number | null
+  created_at: string
+}
+
+export interface CallSignal {
+  id: number
+  type: 'offer' | 'answer' | 'ice'
+  payload: Record<string, unknown>
+  created_at: string
+}
+
 export const messageApi = {
   send: (data: { body: string; receiver_id?: number; property_id?: number; request_id?: number }) =>
     api.post<Message>('/messages/', data),
@@ -296,6 +322,20 @@ export const messageApi = {
   thread: (userId: number, params?: Record<string, unknown>) => api.get<MessageThread>(`/messages/conversation/${userId}`, { params }),
   unreadCount: () => api.get<{ unread_count: number }>('/messages/unread-count'),
   remove: (id: number) => api.delete(`/messages/${id}`),
+}
+
+export const callApi = {
+  create: (receiverId: number, callType: 'audio' | 'video') =>
+    api.post<Call>('/calls/', { receiver_id: receiverId, call_type: callType }),
+  get: (callId: string) => api.get<Call>(`/calls/${callId}`),
+  answer: (callId: string, accepted: boolean) =>
+    api.post<Call>(`/calls/${callId}/answer`, { accepted }),
+  signal: (callId: string, type: 'offer' | 'answer' | 'ice', payload: Record<string, unknown>) =>
+    api.post<{ message: string }>(`/calls/${callId}/signal`, { type, payload }),
+  signals: (callId: string, after = 0) =>
+    api.get<{ signals: CallSignal[] }>(`/calls/${callId}/signals?after=${after}`),
+  end: (callId: string, status?: 'declined' | 'missed') =>
+    api.post<Call>(`/calls/${callId}/end`, status ? { status } : {}),
 }
 
 export const userApi = {

@@ -121,6 +121,15 @@ function messageOwner() {
   })
 }
 
+function callOwner(type: 'audio' | 'video') {
+  if (!property.value) return
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+  import('@/calls/callManager').then(({ callManager }) => callManager.startCall(property.value!.user_id, type))
+}
+
 async function submitBooking() {
   bookingSubmitting.value = true
   bookingErr.value = ''
@@ -245,6 +254,10 @@ onMounted(async () => {
           >
             Message Owner
           </button>
+          <div v-if="!isOwner" class="call-row">
+            <button class="btn btn-outline btn-block" @click="callOwner('audio')">Call Owner</button>
+            <button class="btn btn-outline btn-block" @click="callOwner('video')">Video Call</button>
+          </div>
           <RouterLink
             v-if="!isOwner && contactEmail"
             :to="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"
@@ -519,6 +532,13 @@ onMounted(async () => {
 
 .fav-count {
   font-weight: 600;
+}
+
+.call-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .price {

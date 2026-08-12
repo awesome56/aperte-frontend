@@ -35,6 +35,7 @@ let controller: AbortController | null = null
 let reconnectTimer: number | null = null
 let backoff = 2000
 let stopped = false
+let connected = false
 
 async function connect() {
   const token = localStorage.getItem('aperte_token')
@@ -45,6 +46,7 @@ async function connect() {
   }
 
   controller = new AbortController()
+  connected = true
   try {
     const res = await fetch(STREAM_URL, {
       headers: {
@@ -99,6 +101,7 @@ async function connect() {
     // aborted or network error — reconnect
   } finally {
     controller = null
+    connected = false
   }
 
   if (!stopped) scheduleReconnect()
@@ -117,6 +120,16 @@ export function startStream() {
   stopped = false
   backoff = 2000
   connect()
+}
+
+// Start the stream only if it isn't already connected (safe to call from
+// anywhere — e.g. the call manager — without opening duplicate connections).
+export function ensureStream() {
+  if (stopped) {
+    startStream()
+    return
+  }
+  if (!connected && controller == null) connect()
 }
 
 export function stopStream() {
