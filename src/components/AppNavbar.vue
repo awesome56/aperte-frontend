@@ -1,10 +1,32 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
+
+const unread = ref(0)
+
+async function refreshUnread() {
+  if (!auth.isAuthenticated) return
+  try {
+    const { messageApi } = await import('@/api')
+    const res = await messageApi.unreadCount()
+    unread.value = res.data.unread_count
+  } catch {
+    // ignore
+  }
+}
+
+let unreadTimer: number | null = null
+onMounted(() => {
+  refreshUnread()
+  unreadTimer = window.setInterval(refreshUnread, 30000)
+})
+onUnmounted(() => {
+  if (unreadTimer != null) window.clearInterval(unreadTimer)
+})
 
 const initials = computed(() => {
   if (!auth.user?.full_name) return ''
@@ -34,9 +56,9 @@ function logout() { auth.logout(); router.push('/') }
         <RouterLink to="/" exact-active-class="active">Home</RouterLink>
         <a href="/#about">About</a>
         <RouterLink to="/listings" active-class="active">Listings</RouterLink>
+        <RouterLink to="/browse-requests" active-class="active">Requests</RouterLink>
         <a href="/#services">Services</a>
         <a href="/listings">Blogs</a>
-        <RouterLink v-if="auth.isAuthenticated" to="/requests" active-class="active">Requests</RouterLink>
       </nav>
 
       <RouterLink to="/" class="brand">Aperte</RouterLink>
@@ -48,6 +70,10 @@ function logout() { auth.logout(); router.push('/') }
         </template>
         <template v-else>
           <RouterLink v-if="auth.isStaff" to="/admin" class="login-link">Admin</RouterLink>
+          <RouterLink to="/messages" class="login-link msg-link">
+            Messages
+            <span v-if="unread" class="unread-dot">{{ unread > 99 ? '99+' : unread }}</span>
+          </RouterLink>
           <RouterLink to="/favorites" class="login-link">Favorites</RouterLink>
           <RouterLink to="/dashboard" class="avatar" :title="auth.user?.full_name">{{ initials }}</RouterLink>
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
@@ -93,8 +119,22 @@ function logout() { auth.logout(); router.push('/') }
 .brand { font-size: 1.25rem; font-weight: 600; color: var(--clr-black); white-space: nowrap; }
 
 .nav-end { display: flex; align-items: center; gap: 14px; white-space: nowrap; flex-shrink: 0; }
-.login-link { font-size: 1rem; font-weight: 500; color: var(--clr-dark); }
+.login-link { font-size: 1rem; font-weight: 500; color: var(--clr-dark); position: relative; }
 .login-link:hover { color: var(--clr-blue); }
+
+.msg-link { display: inline-flex; align-items: center; gap: 6px; }
+.unread-dot {
+  background: #ff4757;
+  color: #fff;
+  border-radius: 20px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
 
 .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--clr-blue2); color:#fff; display:grid; place-items:center; font-weight:600; font-size:.85rem; }
 .logout-btn { background:none; border:none; font-size:.9rem; color:var(--clr-muted); cursor:pointer; }

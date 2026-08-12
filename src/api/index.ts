@@ -120,6 +120,7 @@ export interface Slot {
 export interface Request {
   id: number
   user_id: number
+  username?: string | null
   title: string
   description: string
   property_type: string
@@ -231,10 +232,68 @@ export const slotApi = {
 
 export const requestApi = {
   create: (data: Record<string, unknown>) => api.post<Request>('/requests/', data),
+  browse: (params?: Record<string, unknown>) => api.get<Paginated<Request>>('/requests/', { params }),
   list: (userId: number, params?: Record<string, unknown>) => api.get<Paginated<Request>>(`/requests/user/${userId}/`, { params }),
   get: (id: number) => api.get<Request>(`/requests/${id}`),
   update: (id: number, data: Record<string, unknown>) => api.put<Request>(`/requests/${id}`, data),
   remove: (id: number) => api.delete(`/requests/${id}`),
+}
+
+export interface MessageQuote {
+  property?: {
+    id: number
+    title: string
+    property_type: string
+    price: number
+    currency: string
+    location: string
+    city: string
+    state: string
+    dp: string
+  }
+  request?: {
+    id: number
+    title: string
+    property_type: string
+    min_price: number | null
+    max_price: number | null
+    city: string | null
+    state: string | null
+  }
+}
+
+export interface Message extends MessageQuote {
+  id: number
+  sender_id: number
+  receiver_id: number
+  body: string
+  read: number
+  property_id: number | null
+  request_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Conversation {
+  user: { id: number; username: string; full_name: string; profile_picture: string }
+  last_message: Message
+  unread_count: number
+  last_activity: string
+}
+
+export interface MessageThread {
+  messages: Message[]
+  user: { id: number; username: string; full_name: string; profile_picture: string }
+  meta: Paginated<Message>['meta']
+}
+
+export const messageApi = {
+  send: (data: { body: string; receiver_id?: number; property_id?: number; request_id?: number }) =>
+    api.post<Message>('/messages/', data),
+  conversations: (params?: Record<string, unknown>) => api.get<{ data: Conversation[] }>('/messages/conversations', { params }),
+  thread: (userId: number, params?: Record<string, unknown>) => api.get<MessageThread>(`/messages/conversation/${userId}`, { params }),
+  unreadCount: () => api.get<{ unread_count: number }>('/messages/unread-count'),
+  remove: (id: number) => api.delete(`/messages/${id}`),
 }
 
 export const userApi = {

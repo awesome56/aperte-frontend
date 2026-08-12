@@ -53,6 +53,11 @@ function edit(id: number) {
   router.push({ name: 'create-request', query: { edit: id } })
 }
 
+function messages(id: number) {
+  // conversations quoting this request (inquiries from owners/agents)
+  router.push({ name: 'messages', query: { request: id } })
+}
+
 onMounted(load)
 </script>
 
@@ -95,6 +100,7 @@ onMounted(load)
         <div class="card-side">
           <span class="date">{{ fmtDate(r.created_at) }}</span>
           <div class="actions">
+            <button class="btn btn-primary btn-sm" @click="messages(r.id)">Messages</button>
             <button class="btn btn-outline btn-sm" @click="edit(r.id)">Edit</button>
             <button class="btn btn-danger btn-sm" @click="remove(r.id)">Delete</button>
           </div>

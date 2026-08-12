@@ -108,6 +108,19 @@ async function toggleFavorite() {
   }
 }
 
+function messageOwner() {
+  if (!property.value) return
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+  // quote the property so the owner knows where the message came from
+  router.push({
+    name: 'messages',
+    query: { user: property.value.user_id, property: property.value.id },
+  })
+}
+
 async function submitBooking() {
   bookingSubmitting.value = true
   bookingErr.value = ''
@@ -225,6 +238,13 @@ onMounted(async () => {
             <span v-if="favoritesCount" class="fav-count">({{ favoritesCount }})</span>
           </button>
           <button v-if="isBookable" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
+          <button
+            v-if="!isOwner"
+            class="btn btn-outline btn-block"
+            @click="messageOwner"
+          >
+            Message Owner
+          </button>
           <RouterLink
             v-if="!isOwner && contactEmail"
             :to="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"

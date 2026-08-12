@@ -18,6 +18,11 @@ const router = createRouter({
       component: () => import('../views/ListingsView.vue'),
     },
     {
+      path: '/browse-requests',
+      name: 'browse-requests',
+      component: () => import('../views/BrowseRequestsView.vue'),
+    },
+    {
       path: '/properties/:id',
       name: 'property-detail',
       component: () => import('../views/PropertyDetailView.vue'),
@@ -59,6 +64,12 @@ const router = createRouter({
       path: '/create-request',
       name: 'create-request',
       component: () => import('../views/CreateRequestView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/messages',
+      name: 'messages',
+      component: () => import('../views/MessagesView.vue'),
       meta: { requiresAuth: true },
     },
     {
