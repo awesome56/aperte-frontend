@@ -16,6 +16,10 @@ import {
 } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import ClaimPropertyModal from '@/components/ClaimPropertyModal.vue'
+import PropertyGallery from '@/components/PropertyGallery.vue'
+import PropertyCard from '@/components/PropertyCard.vue'
+import SkeletonCard from '@/components/SkeletonCard.vue'
+import { recentlyViewed, recordPropertyView } from '@/composables/recentlyViewed'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,7 +34,6 @@ const favoritesCount = ref(0)
 
 const rooms = ref<Room[]>([])
 const slots = ref<Slot[]>([])
-const activeImage = ref(0)
 
 // booking state
 const bookingOpen = ref(false)
@@ -45,11 +48,11 @@ const bookingMsg = ref('')
 const bookingErr = ref('')
 const bookingSubmitting = ref(false)
 
-const mainImage = computed(() => {
-  const imgs = property.value?.images || []
-  if (imgs.length) return imgs[activeImage.value]?.image_url || imgs[0]?.image_url || ''
-  return ''
-})
+// recommendations
+const similar = ref<Property[]>([])
+const sameCity = ref<Property[]>([])
+const recentItems = computed(() => recentlyViewed.value.filter((x) => x.id !== property.value?.id).slice(0, 6))
+const recLoading = ref(true)
 
 const isBookable = computed(() =>
   ['hotel', 'hall', 'event_center', 'shortlet'].includes(property.value?.category || ''),
@@ -67,10 +70,26 @@ const ownerInitials = computed(() => {
     .toUpperCase()
 })
 
-// Only show the property's own published contact. No fallback to owner placeholders.
 const contactPhone = computed(() => property.value?.contact_phone || '')
 const contactEmail = computed(() => property.value?.contact_email || '')
 const contactWebsite = computed(() => property.value?.contact_website || '')
+
+const isVerified = computed(() => Boolean(property.value?.approved))
+const isClaimed = computed(() => Boolean(property.value?.owner_is_admin === false))
+
+const AMENITY_ICONS: Record<string, string> = {
+  parking: 'P',
+  security: '🛡',
+  electricity: '⚡',
+  water: '💧',
+  ac: '❄',
+  air_conditioning: '❄',
+  elevator: '🛗',
+  swimming_pool: '🏊',
+  gym: '🏋',
+  furnished: '🛋',
+  backup_power: '🔋',
+}
 
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
@@ -101,9 +120,6 @@ async function toggleFavorite() {
     await favoriteApi.toggle(property.value!.id)
     favorited.value = !favorited.value
     favoritesCount.value += favorited.value ? 1 : -1
-    import('@/analytics/tracker').then((m) =>
-      m.default.trackEvent(favorited.value ? 'favorite_add' : 'favorite_remove', 'property', { property_id: property.value!.id }),
-    )
   } catch (e: any) {
     bookingErr.value = e.response?.data?.error || 'Failed to update favorite.'
   }
@@ -115,7 +131,6 @@ function messageOwner() {
     router.push({ name: 'login', query: { redirect: route.fullPath } })
     return
   }
-  // quote the property so the owner knows where the message came from
   router.push({
     name: 'messages',
     query: { user: property.value.user_id, property: property.value.id },
@@ -134,7 +149,7 @@ function callOwner(type: 'audio' | 'video') {
 }
 */
 
-// ---- claim property (admin-listed listings, modal flow) ----
+// ---- claim property ----
 
 const claimStatus = ref<string | null>(null)
 const claimModalOpen = ref(false)
@@ -189,6 +204,14 @@ function attr(label: string, key: string) {
   return { label, value: attrs[key] }
 }
 
+function amenityKeys() {
+  const a = property.value?.amenities as Record<string, any> | undefined
+  if (!a) return []
+  return Object.entries(a)
+    .filter(([, v]) => v === true || (typeof v === 'string' && v !== 'false'))
+    .map(([k]) => k)
+}
+
 onMounted(async () => {
   const id = Number(route.params.id)
   try {
@@ -196,14 +219,9 @@ onMounted(async () => {
     property.value = res.data
     claimStatus.value = res.data.claim_status || null
     favoritesCount.value = res.data.favorites_count || 0
-    if (auth.isAuthenticated) {
-      try {
-        const fav = await favoriteApi.check(id)
-        favorited.value = fav.data.favorited
-      } catch {
-        // non-fatal: heart defaults to unfavorited
-      }
-    }
+    favorited.value = Boolean(res.data.favorited)
+    recordPropertyView(res.data)
+
     const cat = res.data.category
     if (cat === 'hotel') {
       const r = await roomApi.list(id)
@@ -212,16 +230,32 @@ onMounted(async () => {
       const s = await slotApi.list(id)
       slots.value = s.data.data.filter((x) => x.status === 'available')
     }
-    // If arrived from a room detail page with ?room=<id>, open booking with that room preselected
     const roomId = Number(route.query.room)
     if (roomId && rooms.value.some((x) => x.id === roomId)) {
       bookingForm.value.room_id = roomId
       bookingOpen.value = true
     }
+
+    // recommendations
+    if (auth.isAuthenticated) {
+      try {
+        const fav = await favoriteApi.check(id)
+        favorited.value = fav.data.favorited
+      } catch {
+        // non-fatal
+      }
+    }
+    const [similarRes, cityRes] = await Promise.all([
+      propertyApi.browse({ category: res.data.category, per_page: 6 }),
+      propertyApi.browse({ city: res.data.city, per_page: 6 }),
+    ])
+    similar.value = similarRes.data.data.filter((p) => p.id !== id).slice(0, 3)
+    sameCity.value = cityRes.data.data.filter((p) => p.id !== id).slice(0, 6)
   } catch (e: any) {
     error.value = e.response?.data?.error || e.response?.data?.message || 'Property not found.'
   } finally {
     loading.value = false
+    recLoading.value = false
   }
 })
 </script>
@@ -230,201 +264,172 @@ onMounted(async () => {
   <div class="detail" v-if="property">
     <!-- Gallery -->
     <div class="gallery">
-      <div class="gallery-main">
-        <img v-if="mainImage" :src="mainImage" :alt="property.title" />
-        <div v-else class="placeholder">Aperte</div>
-      </div>
-      <div v-if="property.images.length > 1" class="gallery-thumbs">
-        <img
-          v-for="(img, i) in property.images"
-          :key="img.id"
-          :src="img.image_url"
-          :class="{ active: i === activeImage }"
-          @click="activeImage = i"
-        />
-      </div>
+      <PropertyGallery :images="property.images" :videos="property.videos" />
     </div>
 
-    <!-- Header -->
     <div class="container section compact">
+      <!-- Header -->
       <div class="top-row">
         <div>
           <div class="chips">
             <span class="chip">{{ categoryLabels[property.category] || property.category }}</span>
             <span class="chip">{{ purposeLabels[property.purpose] || property.purpose }}</span>
+            <span v-if="isVerified" class="chip verified-chip">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+              Aperte verified
+            </span>
+            <span v-else-if="isClaimed" class="chip claimed-chip">Ownership verified</span>
           </div>
           <h1>{{ property.title }}</h1>
           <p class="location">
             {{ property.location }}, {{ property.city }}, {{ property.state }}, {{ property.country }}
           </p>
+          <p v-if="property.available === 0" class="unavailable-tag">Currently unavailable</p>
         </div>
         <div class="price-box">
           <span class="price">{{ fmtPrice(property.price) }}</span>
-          <button
-            class="btn btn-outline btn-block fav-btn"
-            :class="{ active: favorited }"
-            @click="toggleFavorite"
-          >
-            {{ favorited ? '♥ Saved' : '♡ Save to Favorites' }}
-            <span v-if="favoritesCount" class="fav-count">({{ favoritesCount }})</span>
-          </button>
-          <button v-if="isBookable" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
-          <button
-            v-if="!isOwner"
-            class="btn btn-outline btn-block"
-            @click="messageOwner"
-          >
-            Message Owner
-          </button>
-          <!-- calls temporarily disabled
-          <div v-if="!isOwner" class="call-row">
-            <button class="btn btn-outline btn-block" @click="callOwner('audio')">Call Owner</button>
-            <button class="btn btn-outline btn-block" @click="callOwner('video')">Video Call</button>
-          </div>
-          -->
+          <span class="price-hint" v-if="property.category === 'hotel' || property.category === 'shortlet'">per night</span>
+        </div>
+      </div>
 
-          <!-- Claim admin-listed property: opens the claim modal -->
-          <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
-            <template v-if="claimStatus === 'pending_verification'">
-              <p class="claim-note">Your claim needs verification.</p>
-              <button class="btn btn-primary btn-block" @click="openClaimModal">Complete Verification</button>
-            </template>
-            <template v-else-if="claimStatus === 'pending'">
-              <p class="claim-status pending">Your claim is pending review by the admin.</p>
-            </template>
-            <template v-else-if="claimStatus === 'approved'">
-              <p class="claim-status approved">You own this property.</p>
-            </template>
-            <template v-else-if="claimStatus === 'rejected'">
-              <p class="claim-status rejected">Your previous claim was declined.</p>
-              <button class="btn btn-outline btn-sm" @click="openClaimModal">Claim Again</button>
-            </template>
-            <template v-else>
-              <p class="claim-note">
-                This listing was posted by the site admin and is available to be claimed.
-              </p>
-              <button class="btn btn-primary btn-block" @click="openClaimModal">Claim This Property</button>
-            </template>
+      <!-- Quick facts -->
+      <div class="facts">
+        <div v-if="property.bedrooms != null" class="fact"><b>{{ property.bedrooms }}</b><span>Bedrooms</span></div>
+        <div v-if="property.bathrooms != null" class="fact"><b>{{ property.bathrooms }}</b><span>Bathrooms</span></div>
+        <div v-if="property.area != null" class="fact"><b>{{ fmt(property.area) }}</b><span>Area (m²)</span></div>
+        <div class="fact"><b>{{ categoryLabels[property.category] || property.category }}</b><span>Type</span></div>
+        <div v-if="attr('Furnishing', 'furnished')" class="fact"><b>{{ attr('Furnishing', 'furnished')!.value }}</b><span>Furnishing</span></div>
+        <div class="fact"><b>{{ property.available ? 'Available' : 'Unavailable' }}</b><span>Availability</span></div>
+      </div>
+
+      <div class="content-grid">
+        <div class="main-col">
+          <!-- Description -->
+          <div class="block">
+            <h3 class="subhead">About this property</h3>
+            <p class="desc">{{ property.description }}</p>
           </div>
 
-          <ClaimPropertyModal
-            v-if="claimModalOpen"
-            :property="property"
-            :initial-status="claimStatus"
-            @updated="onClaimUpdated"
-            @close="onClaimModalClose"
-          />
-          <RouterLink
-            v-if="!isOwner && contactEmail"
-            :to="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"
-            class="btn btn-outline btn-block"
-          >
-            Email Contact
-          </RouterLink>
-          <a
-            v-if="!isOwner && contactPhone"
-            :href="`tel:${contactPhone}`"
-            class="btn btn-primary btn-block"
-          >
-            Call Now
-          </a>
-        </div>
-      </div>
-
-      <!-- Contact card -->
-      <div v-if="contactPhone || contactEmail || contactWebsite" class="owner-card">
-        <h3 class="subhead">Contact {{ property.title }}</h3>
-        <div class="owner-info">
-          <div class="owner-avatar">{{ ownerInitials }}</div>
-          <div class="owner-details">
-            <strong>{{ property.owner_full_name || property.username }}</strong>
-            <a v-if="contactPhone" :href="`tel:${contactPhone}`">{{ contactPhone }}</a>
-            <a v-if="contactEmail" :href="`mailto:${contactEmail}`">{{ contactEmail }}</a>
-            <a v-if="contactWebsite" :href="contactWebsite" target="_blank" rel="noopener">{{ contactWebsite.replace(/^https?:\/\//, '') }} ↗</a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Videos -->
-      <div v-if="property.videos.length" class="videos">
-        <h3 class="subhead">Videos</h3>
-        <div class="video-list">
-          <video v-for="v in property.videos" :key="v.id" :src="v.video_url" controls preload="metadata"></video>
-        </div>
-      </div>
-
-      <!-- Description -->
-      <div class="block">
-        <h3 class="subhead">Description</h3>
-        <p class="desc">{{ property.description }}</p>
-      </div>
-
-      <!-- Attributes -->
-      <div v-if="property.attributes && Object.keys(property.attributes).length" class="block">
-        <h3 class="subhead">Property Details</h3>
-        <div class="attrs">
-          <div v-if="property.bedrooms != null" class="attr"><span>Bedrooms</span><b>{{ property.bedrooms }}</b></div>
-          <div v-if="property.bathrooms != null" class="attr"><span>Bathrooms</span><b>{{ property.bathrooms }}</b></div>
-          <div v-if="property.area != null" class="attr"><span>Area</span><b>{{ fmt(property.area) }} m²</b></div>
-          <div v-if="property.year_built" class="attr"><span>Year Built</span><b>{{ property.year_built }}</b></div>
-          <div
-            v-for="a in [
-              attr('Plot Size', 'plot_size'),
-              attr('Land Title', 'land_title'),
-              attr('Star Rating', 'star_rating'),
-              attr('Capacity', 'capacity'),
-              attr('Minimum Stay (nights)', 'minimum_stay_nights'),
-              attr('Maximum Stay (nights)', 'maximum_stay_nights'),
-              attr('Check-in', 'check_in_time'),
-              attr('Check-out', 'check_out_time'),
-              attr('Cleaning Fee', 'cleaning_fee'),
-            ].filter(Boolean)"
-            :key="a!.label"
-            class="attr"
-          >
-            <span>{{ a!.label }}</span><b>{{ a!.value }}</b>
-          </div>
-        </div>
-      </div>
-
-      <!-- Amenities -->
-      <div v-if="property.amenities && Object.keys(property.amenities).length" class="block">
-        <h3 class="subhead">Amenities</h3>
-        <div class="amenities">
-          <span v-for="(v, k) in property.amenities" :key="k" class="amenity">✓ {{ k }}</span>
-        </div>
-      </div>
-
-      <!-- Hotel rooms -->
-      <div v-if="property.category === 'hotel'" class="block">
-        <h3 class="subhead">Rooms</h3>
-        <div v-if="rooms.length" class="rooms">
-          <RouterLink v-for="r in rooms" :key="r.id" :to="`/rooms/${r.id}`" class="room">
-            <div class="room-thumb">
-              <img v-if="r.images?.[0]" :src="r.images[0].image_url" :alt="r.room_type" />
-              <div v-else class="thumb-placeholder">{{ r.room_type }}</div>
+          <!-- Attributes -->
+          <div v-if="property.attributes && Object.keys(property.attributes).length" class="block">
+            <h3 class="subhead">Property details</h3>
+            <div class="attrs">
+              <div v-if="property.year_built" class="attr"><span>Year Built</span><b>{{ property.year_built }}</b></div>
+              <div v-for="(item, key) in property.attributes" :key="key" class="attr">
+                <span>{{ key.replace(/_/g, ' ') }}</span><b>{{ item }}</b>
+              </div>
             </div>
-            <div class="room-info">
-              <strong>{{ r.room_type }}</strong>
-              <span class="room-meta">{{ r.beds }} bed · {{ r.available ? 'Available' : 'Unavailable' }}</span>
-              <span class="room-price">{{ formatPrice(r.price, property.currency) }}/night</span>
-            </div>
-            <span class="view-link">View Room →</span>
-          </RouterLink>
-        </div>
-        <p v-else class="empty">No rooms added yet.</p>
-      </div>
+          </div>
 
-      <!-- Hall / event center slots -->
-      <div v-if="(property.category === 'hall' || property.category === 'event_center') && slots.length" class="block">
-        <h3 class="subhead">Available Slots</h3>
-        <div class="slots">
-          <div v-for="s in slots" :key="s.id" class="slot">
-            <span>{{ s.date }} · {{ s.start_time }}–{{ s.end_time }}</span>
-            <span class="room-price">{{ formatPrice(s.price, property.currency) }}</span>
-            <button v-if="isBookable" class="btn btn-primary btn-sm" @click="bookingForm.slot_id = s.id; startBooking()">Book</button>
+          <!-- Amenities -->
+          <div v-if="amenityKeys().length" class="block">
+            <h3 class="subhead">Amenities</h3>
+            <div class="amenities">
+              <span v-for="a in amenityKeys()" :key="a" class="amenity">
+                <span class="amenity-icon">{{ AMENITY_ICONS[a] || '✓' }}</span>
+                {{ a.replace(/_/g, ' ') }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Videos -->
+          <div v-if="property.videos.length" class="block">
+            <h3 class="subhead">Videos</h3>
+            <div class="video-list">
+              <video v-for="v in property.videos" :key="v.id" :src="v.video_url" controls preload="metadata"></video>
+            </div>
+          </div>
+
+          <!-- Rooms (hotel) -->
+          <div v-if="property.category === 'hotel'" class="block">
+            <h3 class="subhead">Rooms</h3>
+            <div v-if="rooms.length" class="rooms">
+              <RouterLink v-for="r in rooms" :key="r.id" :to="`/rooms/${r.id}`" class="room">
+                <div class="room-thumb">
+                  <img v-if="r.images?.[0]" :src="r.images[0].image_url" :alt="r.room_type" />
+                  <div v-else class="thumb-placeholder">{{ r.room_type }}</div>
+                </div>
+                <div class="room-info">
+                  <strong>{{ r.room_type }}</strong>
+                  <span class="room-meta">{{ r.beds }} bed · {{ r.available ? 'Available' : 'Unavailable' }}</span>
+                  <span class="room-price">{{ formatPrice(r.price, property.currency) }}/night</span>
+                </div>
+                <span class="view-link">View Room →</span>
+              </RouterLink>
+            </div>
+            <p v-else class="empty">No rooms added yet.</p>
+          </div>
+
+          <!-- Slots -->
+          <div v-if="(property.category === 'hall' || property.category === 'event_center') && slots.length" class="block">
+            <h3 class="subhead">Available Slots</h3>
+            <div class="slots">
+              <div v-for="s in slots" :key="s.id" class="slot">
+                <span>{{ s.date }} · {{ s.start_time }}–{{ s.end_time }}</span>
+                <span class="room-price">{{ formatPrice(s.price, property.currency) }}</span>
+                <button v-if="isBookable" class="btn btn-primary btn-sm" @click="bookingForm.slot_id = s.id; startBooking()">Book</button>
+              </div>
+            </div>
           </div>
         </div>
+
+        <!-- Sidebar: owner + actions -->
+        <aside class="side-col">
+          <div class="owner-card">
+            <div class="owner-info">
+              <div class="owner-avatar">{{ ownerInitials }}</div>
+              <div class="owner-details">
+                <span class="owner-label">Listed by</span>
+                <strong>{{ property.owner_full_name || property.username }}</strong>
+                <span class="owner-verified">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+                  {{ isVerified ? 'Aperte verified' : 'Verified account' }}
+                </span>
+              </div>
+            </div>
+
+            <button
+              v-if="!isOwner"
+              class="btn btn-primary btn-block"
+              @click="messageOwner"
+            >
+              Message Owner
+            </button>
+            <button v-if="isBookable && !isOwner" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
+            <a
+              v-if="!isOwner && contactEmail"
+              :href="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"
+              class="btn btn-outline btn-block"
+            >
+              Email Contact
+            </a>
+            <a v-if="!isOwner && contactPhone" :href="`tel:${contactPhone}`" class="btn btn-primary btn-block">
+              Call Now
+            </a>
+
+            <!-- Claim -->
+            <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
+              <template v-if="claimStatus === 'pending_verification'">
+                <p class="claim-note">Your claim needs verification.</p>
+                <button class="btn btn-primary btn-block" @click="openClaimModal">Complete Verification</button>
+              </template>
+              <template v-else-if="claimStatus === 'pending'">
+                <p class="claim-status pending">Your claim is pending review by the admin.</p>
+              </template>
+              <template v-else-if="claimStatus === 'approved'">
+                <p class="claim-status approved">You own this property.</p>
+              </template>
+              <template v-else-if="claimStatus === 'rejected'">
+                <p class="claim-status rejected">Your previous claim was declined.</p>
+                <button class="btn btn-outline btn-sm" @click="openClaimModal">Claim Again</button>
+              </template>
+              <template v-else>
+                <p class="claim-note">Is this your property? Verify your ownership and take control of this listing.</p>
+                <button class="btn btn-primary btn-block" @click="openClaimModal">Claim This Property</button>
+              </template>
+            </div>
+          </div>
+        </aside>
       </div>
 
       <!-- Booking modal -->
@@ -476,66 +481,75 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+
+      <!-- Discovery loop -->
+      <section v-if="similar.length" class="recs">
+        <h2 class="rec-title">You might also like</h2>
+        <div class="rec-grid">
+          <PropertyCard v-for="p in similar" :key="p.id" :property="p" />
+        </div>
+      </section>
+
+      <section v-if="sameCity.length" class="recs">
+        <h2 class="rec-title">More properties in {{ property.city }}</h2>
+        <div class="rec-grid">
+          <PropertyCard v-for="p in sameCity.slice(0, 3)" :key="p.id" :property="p" />
+        </div>
+      </section>
+
+      <section v-if="recentItems.length" class="recs">
+        <h2 class="rec-title">Recently viewed</h2>
+        <div class="rec-grid">
+          <PropertyCard
+            v-for="r in recentItems"
+            :key="r.id"
+            :property="{
+              id: r.id, title: r.title, dp: r.dp, price: r.price, currency: r.currency,
+              city: r.city, state: r.state, category: r.category, purpose: r.purpose,
+            } as unknown as Property"
+          />
+        </div>
+      </section>
+    </div>
+
+    <!-- Sticky mobile action bar -->
+    <div class="sticky-bar">
+      <button class="sb-fav" :class="{ active: favorited }" @click="toggleFavorite">
+        <svg viewBox="0 0 24 24" width="20" height="20" :fill="favorited ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        <span>Save</span>
+      </button>
+      <button v-if="!isOwner" class="sb-msg" @click="messageOwner">Message</button>
+      <button v-if="isBookable && !isOwner" class="sb-book" @click="startBooking">Book Now</button>
     </div>
   </div>
 
-  <div v-else-if="loading" class="loading">Loading…</div>
-  <div v-else class="loading">{{ error }}</div>
+  <div v-else-if="loading" class="loading">
+    <div class="container"><SkeletonCard height="360px" /></div>
+  </div>
+  <div v-else class="loading state-box">
+    <h3>Something went wrong</h3>
+    <p>{{ error }}</p>
+    <RouterLink to="/listings" class="btn btn-primary">Browse properties</RouterLink>
+  </div>
+
+  <ClaimPropertyModal
+    v-if="property && claimModalOpen"
+    :property="property"
+    :initial-status="claimStatus"
+    @updated="onClaimUpdated"
+    @close="onClaimModalClose"
+  />
 </template>
 
 <style scoped>
 .gallery {
-  max-width: var(--container);
+  max-width: var(--container, 1200px);
   margin: 0 auto;
-  padding: 30px 24px 0;
-}
-
-.gallery-main {
-  border-radius: 20px;
-  overflow: hidden;
-  height: 440px;
-  background: linear-gradient(135deg, var(--color-blue-2), var(--color-purple));
-}
-
-.gallery-main img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.placeholder {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 2rem;
-  font-weight: 600;
-}
-
-.gallery-thumbs {
-  display: flex;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.gallery-thumbs img {
-  width: 110px;
-  height: 74px;
-  object-fit: cover;
-  border-radius: 8px;
-  cursor: pointer;
-  opacity: 0.6;
-  border: 2px solid transparent;
-}
-
-.gallery-thumbs img.active {
-  opacity: 1;
-  border-color: var(--color-primary);
+  padding: 24px 24px 0;
 }
 
 .section.compact {
-  padding-top: 40px;
+  padding-top: 32px;
 }
 
 .top-row {
@@ -543,304 +557,226 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 30px;
   flex-wrap: wrap;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .chips {
   display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
 .chip {
-  background: var(--color-bg-blue);
-  color: var(--color-primary);
-  font-size: 0.8rem;
+  background: var(--color-bg-blue, #eef4ff);
+  color: var(--color-primary, #0a84ff);
+  font-size: 0.78rem;
   font-weight: 600;
-  padding: 5px 14px;
+  padding: 4px 12px;
   border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.top-row h1 {
-  font-size: 2.2rem;
-  color: var(--color-purple-dark);
-  margin-bottom: 8px;
-}
-
-.location {
-  color: var(--color-muted);
-}
-
-.price-box {
-  min-width: 240px;
-}
-
-.fav-btn {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  margin-bottom: 10px;
-}
-
-.fav-btn.active {
-  color: #ff4757;
-  border-color: #ff4757;
-}
-
-.fav-count {
-  font-weight: 600;
-}
-
-.call-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.claim-box {
-  border: 1.5px dashed var(--color-primary);
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 10px;
-  background: var(--color-bg-blue);
-}
-
-.claim-note {
-  font-size: 0.85rem;
-  color: var(--color-primary);
-  margin-bottom: 10px;
-}
-
-.claim-status {
-  font-size: 0.88rem;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.claim-status.pending {
-  color: #b7791f;
-}
-
-.claim-status.approved {
+.verified-chip {
+  background: #e6f7ec;
   color: #1a7f37;
 }
 
-.claim-status.rejected {
+.claimed-chip {
+  background: #eef4ff;
+  color: #0a84ff;
+}
+
+.top-row h1 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  color: var(--color-purple-dark, #2b2358);
+  margin-bottom: 6px;
+}
+
+.location {
+  color: var(--color-muted, #666);
+}
+
+.unavailable-tag {
   color: #d0342c;
-}
-
-.verify-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.verify-input {
-  flex: 1;
-  border: 1.5px solid var(--color-primary);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 1rem;
-  letter-spacing: 4px;
-  text-align: center;
   font-weight: 600;
+  margin-top: 8px;
 }
 
-.resend-link {
-  background: none;
-  border: none;
-  color: var(--color-primary);
-  font-size: 0.82rem;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-}
-
-.resend-link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.doc-pick {
-  display: block;
-  border: 1.5px dashed var(--color-primary);
-  border-radius: 8px;
-  padding: 12px;
-  text-align: center;
-  color: var(--color-primary);
-  font-size: 0.88rem;
-  cursor: pointer;
-  margin-bottom: 10px;
-  background: #fff;
-}
-
-.doc-pick input {
-  display: none;
+.price-box {
+  min-width: 220px;
+  text-align: right;
 }
 
 .price {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--color-primary);
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-weight: 700;
+  color: var(--color-primary, #0a84ff);
   display: block;
-  margin-bottom: 14px;
 }
 
-.videos {
-  margin-bottom: 34px;
+.price-hint {
+  color: var(--color-muted, #888);
+  font-size: 0.85rem;
 }
 
-.video-list {
+/* quick facts */
+.facts {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 28px;
 }
 
-.video-list video {
-  width: 320px;
-  height: 180px;
+.fact {
+  flex: 1;
+  min-width: 110px;
+  background: #f7f9fc;
   border-radius: 12px;
-  background: #000;
-}
-
-.subhead {
-  font-size: 1.25rem;
-  color: var(--color-purple-dark);
-  margin-bottom: 16px;
-}
-
-.owner-card {
-  background: var(--color-bg-soft);
-  border-radius: var(--radius);
-  padding: 22px 24px;
-  margin-bottom: 36px;
-}
-
-.owner-card .subhead {
-  margin-bottom: 14px;
-}
-
-.owner-info {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.owner-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-weight: 600;
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.owner-details {
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
-.owner-details strong {
-  color: var(--color-purple-dark);
+.fact b {
   font-size: 1.05rem;
+  color: var(--color-dark, #222);
 }
 
-.owner-details a {
-  color: var(--color-primary);
-  font-size: 0.95rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.fact span {
+  font-size: 0.78rem;
+  color: var(--color-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.owner-details a:hover {
-  text-decoration: underline;
+/* layout */
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 32px;
+  align-items: start;
+}
+
+.main-col {
+  min-width: 0;
 }
 
 .block {
-  margin-bottom: 36px;
+  margin-bottom: 28px;
+}
+
+.subhead {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-dark, #222);
+  margin-bottom: 12px;
 }
 
 .desc {
-  color: var(--color-text-2);
-  line-height: 1.8;
-  max-width: 800px;
+  color: var(--color-muted, #555);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  font-size: 0.98rem;
 }
 
 .attrs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .attr {
-  background: var(--color-bg-soft);
+  background: #f7f9fc;
   border-radius: 10px;
-  padding: 16px;
+  padding: 10px 14px;
   display: flex;
   justify-content: space-between;
-}
-
-.attr span {
-  color: var(--color-muted);
+  gap: 10px;
   font-size: 0.9rem;
 }
 
+.attr span {
+  color: var(--color-muted, #777);
+}
+
 .attr b {
-  color: var(--color-purple-dark);
+  color: var(--color-dark, #222);
+  text-transform: capitalize;
 }
 
 .amenities {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 
 .amenity {
-  background: #eef7ff;
-  color: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f7f9fc;
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  color: var(--color-dark, #333);
+  text-transform: capitalize;
+}
+
+.amenity-icon {
+  width: 26px;
+  height: 26px;
   border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.rooms,
-.slots {
+  background: #eef4ff;
+  color: var(--color-primary, #0a84ff);
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
-.room,
-.slot {
+.video-list {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.video-list video {
+  width: min(100%, 360px);
+  border-radius: 10px;
+}
+
+.rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.room {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1.5px solid var(--color-border);
+  gap: 14px;
+  background: #f7f9fc;
   border-radius: 12px;
-  padding: 16px 18px;
+  padding: 12px 16px;
   color: inherit;
-  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .room:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow);
+  background: #eef4ff;
 }
 
 .room-thumb {
-  width: 90px;
-  height: 66px;
+  width: 72px;
+  height: 56px;
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
+  background: #e8ecf4;
 }
 
 .room-thumb img {
@@ -850,99 +786,320 @@ onMounted(async () => {
 }
 
 .thumb-placeholder {
-  width: 100%;
-  height: 100%;
   display: grid;
   place-items: center;
-  background: var(--color-bg-soft);
-  color: var(--color-muted);
-  font-size: 0.75rem;
+  height: 100%;
+  font-size: 0.72rem;
+  color: #8a94a6;
 }
 
 .room-info {
   flex: 1;
-  min-width: 0;
-}
-
-.view-link {
-  color: var(--color-primary);
-  font-weight: 500;
-  font-size: 0.85rem;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .room-meta {
-  display: block;
-  color: var(--color-muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  color: var(--color-muted, #777);
 }
 
 .room-price {
+  font-weight: 700;
+  color: var(--color-primary, #0a84ff);
+}
+
+.view-link {
+  color: var(--color-primary, #0a84ff);
   font-weight: 600;
-  color: var(--color-primary);
+  font-size: 0.88rem;
+}
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f7f9fc;
+  border-radius: 10px;
+  padding: 12px 14px;
   font-size: 0.9rem;
+  flex-wrap: wrap;
 }
 
-.empty {
-  color: var(--color-muted);
+/* sidebar */
+.side-col {
+  position: sticky;
+  top: 96px;
 }
 
+.owner-card {
+  background: #f7f9fc;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.owner-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.owner-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--clr-blue2, #0a84ff);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.owner-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.owner-label {
+  font-size: 0.72rem;
+  color: var(--color-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.owner-details strong {
+  color: var(--color-dark, #222);
+  font-size: 0.98rem;
+}
+
+.owner-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #1a7f37;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.claim-box {
+  border: 1.5px dashed var(--color-primary, #0a84ff);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--color-bg-blue, #eef4ff);
+}
+
+.claim-note {
+  font-size: 0.82rem;
+  color: var(--color-primary, #0a84ff);
+  margin-bottom: 8px;
+}
+
+.claim-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.claim-status.pending { color: #b7791f; }
+.claim-status.approved { color: #1a7f37; }
+.claim-status.rejected { color: #d0342c; }
+
+/* booking modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(10, 8, 9, 0.55);
+  z-index: 1100;
+  background: rgba(10, 12, 20, 0.55);
   display: grid;
   place-items: center;
-  z-index: 200;
   padding: 20px;
 }
 
 .modal {
   background: #fff;
   border-radius: 16px;
-  padding: 30px;
-  width: 100%;
-  max-width: 440px;
-  max-height: 90vh;
-  overflow-y: auto;
+  width: min(92vw, 440px);
+  padding: 26px;
 }
 
 .modal h3 {
-  color: var(--color-purple-dark);
-  margin-bottom: 6px;
+  font-size: 1.2rem;
+  margin-bottom: 4px;
 }
 
 .modal-property {
-  color: var(--color-muted);
-  margin-bottom: 20px;
+  color: var(--color-muted, #666);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-muted, #666);
+}
+
+.form-control {
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 12px;
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* recommendations */
+.recs {
+  margin-top: 44px;
+}
+
+.rec-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-dark, #222);
+  margin-bottom: 18px;
+}
+
+.rec-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+/* sticky mobile bar */
+.sticky-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 800;
+  display: none;
+  background: #fff;
+  border-top: 1px solid #e8ecf3;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  gap: 10px;
+  box-shadow: 0 -4px 20px rgba(16, 30, 60, 0.08);
+}
+
+.sticky-bar .sb-fav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: #8a94a6;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 52px;
+}
+
+.sticky-bar .sb-fav.active {
+  color: #ff4757;
+}
+
+.sticky-bar .sb-msg,
+.sticky-bar .sb-book {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 13px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sticky-bar .sb-msg {
+  background: #eef4ff;
+  color: var(--color-primary, #0a84ff);
+}
+
+.sticky-bar .sb-book {
+  background: var(--color-primary, #0a84ff);
+  color: #fff;
 }
 
 .loading {
-  text-align: center;
-  color: var(--color-muted);
-  padding: 80px;
+  padding: 60px 0;
 }
 
-@media (max-width: 700px) {
-  .attrs {
+.state-box {
+  text-align: center;
+  color: var(--color-muted, #666);
+  padding: 80px 20px;
+}
+
+.state-box h3 {
+  color: var(--color-dark, #222);
+  margin-bottom: 8px;
+}
+
+.state-box p {
+  margin-bottom: 18px;
+}
+
+@media (max-width: 1000px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+  .side-col {
+    position: static;
+    order: -1;
+  }
+  .rec-grid {
     grid-template-columns: 1fr 1fr;
   }
-  .rooms,
-  .slots {
+}
+
+@media (max-width: 768px) {
+  .sticky-bar {
+    display: flex;
+  }
+  .price-box {
+    text-align: left;
+  }
+}
+
+@media (max-width: 600px) {
+  .rec-grid {
     grid-template-columns: 1fr;
+  }
+  .gallery {
+    padding: 0;
   }
 }
 </style>
