@@ -47,7 +47,8 @@ function logout() { auth.logout(); router.push('/') }
         </template>
         <template v-else>
           <RouterLink v-if="auth.isStaff" to="/admin" class="login-link">Admin</RouterLink>
-          <RouterLink to="/requests" class="login-link">Requests</RouterLink>
+          <RouterLink to="/requests" class="login-link">My Requests</RouterLink>
+          <RouterLink to="/create-request" class="btn btn-outline">Post Request</RouterLink>
           <RouterLink to="/favorites" class="login-link">Favorites</RouterLink>
           <RouterLink to="/dashboard" class="avatar" :title="auth.user?.full_name">{{ initials }}</RouterLink>
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
@@ -95,5 +96,12 @@ function logout() { auth.logout(); router.push('/') }
 .logout-btn { background:none; border:none; font-size:.9rem; color:var(--clr-muted); cursor:pointer; }
 .logout-btn:hover { color: var(--clr-red); }
 
-@media (max-width: 768px) { .nav-links { display:none; } .login-link{display:none;} }
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .navbar { height: auto; padding: 8px 0; }
+  .nav-inner { flex-wrap: wrap; gap: 10px; row-gap: 6px; }
+  .login-link { font-size: 0.88rem; }
+  .nav-end { flex-wrap: wrap; }
+  .logout-btn { margin-left: auto; }
+}
 </style>

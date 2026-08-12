@@ -296,6 +296,11 @@ onMounted(loadAll)
       <button :class="{ active: tab === 'profile' }" @click="tab = 'profile'">Profile</button>
     </div>
 
+    <div class="quick-actions">
+      <RouterLink to="/create-request" class="btn btn-primary">Post a Request</RouterLink>
+      <RouterLink to="/requests" class="btn btn-outline">My Requests</RouterLink>
+    </div>
+
     <!-- MY PROPERTIES -->
     <div v-if="tab === 'properties'" class="panel">
       <div v-if="loading" class="loading">Loading…</div>
@@ -521,6 +526,13 @@ onMounted(loadAll)
 
 .panel {
   min-height: 200px;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 16px 0 24px;
 }
 
 .empty {
