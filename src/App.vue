@@ -12,8 +12,9 @@ import { startStream, stopStream, ensureStream } from '@/messaging/stream'
 const auth = useAuthStore()
 const route = useRoute()
 
-// The admin area has its own chrome (sidebar/header) - hide the site navbar & footer there.
-const isAdminArea = computed(() => route.path.startsWith('/admin'))
+// Hide the site navbar/footer chrome where the page has its own chrome:
+// the admin area and the dashboard (which has its own header/sidebar).
+const hideChrome = computed(() => route.path.startsWith('/admin') || route.path.startsWith('/dashboard'))
 
 // The SSE stream (messages + calls) runs globally for authenticated users so
 // incoming calls and new messages arrive on ANY page.
@@ -36,11 +37,11 @@ onUnmounted(() => stopStream())
 
 <template>
   <div class="app">
-    <AppNavbar v-if="!isAdminArea" />
+    <AppNavbar v-if="!hideChrome" />
     <main class="main">
       <RouterView />
     </main>
-    <AppFooter v-if="!isAdminArea" />
+    <AppFooter v-if="!hideChrome" />
     <BottomNavigation />
     <!-- calls temporarily disabled
     <CallOverlay />
