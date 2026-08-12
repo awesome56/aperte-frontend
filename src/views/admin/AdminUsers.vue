@@ -55,6 +55,17 @@ async function removeUser(u: AdminUser) {
   }
 }
 
+async function toggleVerify(u: AdminUser) {
+  const next = !u.email_verified
+  try {
+    await adminApi.verifyUser(u.id, next)
+    msg.value = `${u.full_name} ${next ? 'verified' : 'unverified'}.`
+    await load()
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to update verification.'
+  }
+}
+
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
@@ -118,6 +129,8 @@ onMounted(() => {
           </td>
           <td>{{ fmtDate(u.created_at) }}</td>
           <td class="actions">
+            <button v-if="!u.email_verified" class="btn small" @click="toggleVerify(u)">Verify</button>
+            <button v-else class="btn small outline" @click="toggleVerify(u)">Unverify</button>
             <button class="btn small danger" @click="removeUser(u)">Delete</button>
           </td>
         </tr>

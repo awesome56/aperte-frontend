@@ -522,6 +522,7 @@ export const adminApi = {
   analyticsPrune: (days: number) => api.post(`/admin/insights/prune?days=${days}`),
   users: (params: Record<string, unknown>) => api.get<Paginated<AdminUser>>('/admin/users', { params }),
   setRole: (id: number, role: string) => api.put<AdminUser>(`/admin/users/${id}/role`, { role }),
+  verifyUser: (id: number, verified: boolean) => api.put<{ message: string; user: AdminUser }>(`/admin/users/${id}/verify`, { verified }),
   deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
   properties: (params: Record<string, unknown>) => api.get<Paginated<AdminProperty>>('/admin/properties', { params }),
   approve: (id: number) => api.put(`/admin/properties/${id}/approve`),
