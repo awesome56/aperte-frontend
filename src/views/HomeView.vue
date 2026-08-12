@@ -372,8 +372,8 @@ onMounted(async () => {
 
 .search-btn {
   align-self: flex-start;
-  padding: 13px 44px;
-  font-size: 1.05rem;
+  padding: 10px 24px;
+  font-size: 0.95rem;
 }
 
 /* stats */
@@ -567,11 +567,17 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.promo-actions .btn {
+  padding: 10px 24px;
+  font-size: 0.92rem;
+}
+
 .btn-light {
   background: #fff;
   color: var(--clr-purple-btn, #4b2a85);
   font-weight: 600;
-  padding: 13px 34px;
+  padding: 10px 24px;
+  font-size: 0.92rem;
   border-radius: 10px;
   border: none;
   cursor: pointer;
