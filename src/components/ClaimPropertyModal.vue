@@ -14,7 +14,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const auth = useAuthStore()
 
-const step = ref<'start' | 'verification' | 'submitted'>(props.initialStatus === 'pending_verification' ? 'verification' : 'start')
+const step = ref<'choose' | 'document' | 'verification' | 'submitted'>(props.initialStatus === 'pending_verification' ? 'verification' : 'choose')
 const status = ref<string | null>(props.initialStatus || null)
 const msg = ref('')
 const err = ref('')
@@ -23,8 +23,18 @@ const verificationEmail = ref('')
 const verifyCode = ref('')
 const resending = ref(false)
 const documentFile = ref<File | null>(null)
+const method = ref<'email' | 'document' | null>(null)
 
-const byDocument = computed(() => Boolean(props.property.owner_is_admin && !props.property.contact_email))
+async function chooseMethod(m: 'email' | 'document') {
+  method.value = m
+  msg.value = ''
+  err.value = ''
+  if (m === 'email') {
+    await startClaim()
+  } else {
+    step.value = 'document'
+  }
+}
 
 async function startClaim() {
   busy.value = true
@@ -109,7 +119,8 @@ function onDocumentPick(e: Event) {
 function retry() {
   // rejected -> start over
   status.value = null
-  step.value = 'start'
+  step.value = 'choose'
+  method.value = null
   msg.value = ''
   err.value = ''
   verifyCode.value = ''
@@ -153,31 +164,53 @@ function signIn() {
             <button class="btn btn-primary btn-block" @click="retry">Try Again</button>
           </div>
 
-          <!-- START -->
-          <div v-else-if="step === 'start'" class="claim-body">
-            <p class="note" v-if="!byDocument">
-              To claim this property, we'll email a 6-digit verification code to the property's contact address.
-            </p>
-            <p class="note" v-else>
-              This property has no contact email. Upload an ownership document (PDF, image or Word file) — the admin will review it before transferring ownership.
-            </p>
+          <!-- CHOOSE METHOD -->
+          <div v-else-if="step === 'choose'" class="claim-body">
+            <p class="note">How would you like to verify your ownership of this property?</p>
 
-            <!-- document mode -->
-            <template v-if="byDocument">
-              <label class="doc-pick">
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.webp" @change="onDocumentPick" />
-                {{ documentFile ? documentFile.name : 'Choose a document…' }}
-              </label>
-              <button class="btn btn-primary btn-block" :disabled="!documentFile || busy" @click="submitDocumentClaim">
-                {{ busy ? 'Uploading…' : 'Submit Claim' }}
-              </button>
-            </template>
-
-            <!-- email mode -->
-            <button v-else class="btn btn-primary btn-block" :disabled="busy" @click="startClaim">
-              {{ busy ? 'Submitting…' : 'Claim This Property' }}
+            <button class="method-card" :disabled="busy" @click="chooseMethod('email')">
+              <span class="method-icon">@</span>
+              <span class="method-text">
+                <strong>Verify with Email</strong>
+                <small>Receive a 6-digit code on your email</small>
+              </span>
             </button>
 
+            <button class="method-card disabled" disabled title="Coming soon">
+              <span class="method-icon">📞</span>
+              <span class="method-text">
+                <strong>Verify with Phone</strong>
+                <small>Coming soon</small>
+              </span>
+            </button>
+
+            <button class="method-card" :disabled="busy" @click="chooseMethod('document')">
+              <span class="method-icon">📄</span>
+              <span class="method-text">
+                <strong>Submit a Document</strong>
+                <small>Upload supporting ownership documents</small>
+              </span>
+            </button>
+
+            <p v-if="msg" class="status approved">{{ msg }}</p>
+            <p v-if="err" class="status rejected">{{ err }}</p>
+          </div>
+
+          <!-- DOCUMENT -->
+          <div v-else-if="step === 'document'" class="claim-body">
+            <p class="note">
+              Upload a supporting document (PDF, image or Word file) — the admin will review it before transferring ownership.
+            </p>
+            <label class="doc-pick">
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.webp" @change="onDocumentPick" />
+              {{ documentFile ? documentFile.name : 'Choose a document…' }}
+            </label>
+            <button class="btn btn-primary btn-block" :disabled="!documentFile || busy" @click="submitDocumentClaim">
+              {{ busy ? 'Uploading…' : 'Submit Claim' }}
+            </button>
+            <button class="resend-link" :disabled="busy" @click="step = 'choose'; method = null; documentFile = null">
+              ← Back to methods
+            </button>
             <p v-if="msg" class="status approved">{{ msg }}</p>
             <p v-if="err" class="status rejected">{{ err }}</p>
           </div>
@@ -185,7 +218,7 @@ function signIn() {
           <!-- VERIFICATION -->
           <div v-else-if="step === 'verification'" class="claim-body">
             <p class="note">
-              We sent a 6-digit verification code to <strong>{{ verificationEmail || 'the property email' }}</strong>.
+              We sent a 6-digit verification code to <strong>{{ verificationEmail || 'your email' }}</strong>.
               Enter it below to confirm ownership.
             </p>
             <div class="verify-row">
@@ -348,5 +381,56 @@ function signIn() {
 .resend-link:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.method-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  border: 1.5px solid var(--color-border, #e5e5e7);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.method-card:hover:not(.disabled) {
+  border-color: var(--color-primary, #0a84ff);
+  background: var(--color-bg-blue, #f0f6ff);
+}
+
+.method-card.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.method-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--color-bg-blue, #f0f6ff);
+  color: var(--color-primary, #0a84ff);
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  flex-shrink: 0;
+}
+
+.method-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.method-text strong {
+  color: var(--color-dark, #1c1c1c);
+  font-size: 0.95rem;
+}
+
+.method-text small {
+  color: var(--color-muted, #666);
+  font-size: 0.8rem;
 }
 </style>

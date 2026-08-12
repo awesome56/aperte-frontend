@@ -202,7 +202,7 @@ export const propertyApi = {
   deleteVideo: (id: number) => api.delete(`/properties/videos/${id}`),
   setDp: (id: number) => api.put(`/properties/images/${id}/dp`),
   claim: (id: number) =>
-    api.post<{ message: string; claim: { id: number; status: string }; verification_email?: string }>(`/properties/${id}/claim`),
+    api.post<{ message: string; claim: { id: number; status: string }; verification_email?: string }>(`/properties/${id}/claim`, { method: 'email' }),
   claimWithDocument: (id: number, file: File) => {
     const fd = new FormData()
     fd.append('document', file)
