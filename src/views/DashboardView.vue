@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { propertyApi, bookingApi, requestApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
 // personal sections (lazy)
+const MyAnalyticsSection = defineAsyncComponent(() => import('@/views/dashboard/MyAnalyticsSection.vue'))
 const MyPropertiesSection = defineAsyncComponent(() => import('@/views/dashboard/MyPropertiesSection.vue'))
 const MyBookingsSection = defineAsyncComponent(() => import('@/views/dashboard/MyBookingsSection.vue'))
 const MyRequestsSection = defineAsyncComponent(() => import('@/views/dashboard/MyRequestsSection.vue'))
-const MyAnalyticsSection = defineAsyncComponent(() => import('@/views/dashboard/MyAnalyticsSection.vue'))
 const ProfileSection = defineAsyncComponent(() => import('@/views/dashboard/ProfileSection.vue'))
 // embedded pages
 const FavoritesView = defineAsyncComponent(() => import('@/views/FavoritesView.vue'))
@@ -33,7 +32,6 @@ const PERSONAL_SECTIONS = [
   { key: 'properties', label: 'My Properties', icon: 'building' },
   { key: 'bookings', label: 'My Bookings', icon: 'calendar' },
   { key: 'requests', label: 'My Requests', icon: 'list' },
-  { key: 'myanalytics', label: 'My Analytics', icon: 'chart' },
   { key: 'favorites', label: 'Favorites', icon: 'heart' },
   { key: 'messages', label: 'Messages', icon: 'chat' },
   { key: 'profile', label: 'Profile', icon: 'user' },
@@ -76,42 +74,10 @@ watch(
   },
 )
 
-// landing activity summary
-const activity = ref({ properties: 0, bookings: 0, requests: 0 })
-const loadingActivity = ref(true)
-
-async function loadActivity() {
-  if (!auth.user?.id) {
-    await auth.fetchMe()
-  }
-  if (!auth.user?.id) {
-    loadingActivity.value = false
-    return
-  }
-  try {
-    const [p, b, r] = await Promise.all([
-      propertyApi.mine(auth.user.id),
-      bookingApi.user(auth.user.id),
-      requestApi.list(auth.user.id, { per_page: 1 }),
-    ])
-    activity.value = {
-      properties: p.data.meta.total_count,
-      bookings: b.data.meta.total_count,
-      requests: r.data.meta.total_count,
-    }
-  } catch {
-    // keep zeros
-  } finally {
-    loadingActivity.value = false
-  }
-}
-
 function logout() {
   auth.logout()
   router.push('/')
 }
-
-onMounted(loadActivity)
 </script>
 
 <template>
@@ -180,7 +146,7 @@ onMounted(loadActivity)
     </Teleport>
 
     <main class="c-main">
-      <!-- LANDING -->
+      <!-- LANDING (shows personal analytics) -->
       <div v-if="currentSection?.key === 'dashboard'" class="landing">
         <div class="dash-head">
           <div class="dash-welcome">
@@ -201,20 +167,7 @@ onMounted(loadActivity)
           </div>
         </div>
 
-        <div class="activity-grid" v-if="!loadingActivity">
-          <button class="act-card" @click="setSection('properties')">
-            <b>{{ activity.properties }}</b><span>My Properties</span>
-          </button>
-          <button class="act-card" @click="setSection('bookings')">
-            <b>{{ activity.bookings }}</b><span>My Bookings</span>
-          </button>
-          <button class="act-card" @click="setSection('requests')">
-            <b>{{ activity.requests }}</b><span>My Requests</span>
-          </button>
-          <button class="act-card accent" @click="setSection('myanalytics')">
-            <b>→</b><span>My Analytics</span>
-          </button>
-        </div>
+        <MyAnalyticsSection />
       </div>
 
       <!-- PERSONAL SECTIONS -->
@@ -428,44 +381,6 @@ onMounted(loadActivity)
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.activity-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  max-width: 760px;
-}
-
-.act-card {
-  background: #f8f9fc;
-  border: none;
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: left;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.act-card:hover {
-  background: #eef4ff;
-}
-
-.act-card.accent {
-  background: #eef4ff;
-}
-
-.act-card b {
-  font-size: 1.4rem;
-  color: #1c1c1c;
-}
-
-.act-card span {
-  font-size: 0.8rem;
-  color: #777;
 }
 
 /* mobile */
