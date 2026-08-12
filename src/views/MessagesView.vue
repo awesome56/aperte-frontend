@@ -62,6 +62,12 @@ function lastSeenText(lastSeen: string | null) {
   return `${days}d ago`
 }
 
+function receipt(m: Message): { label: string; cls: string; icon: string } {
+  if (m.read) return { label: 'Seen', cls: 'seen', icon: '✓✓' }
+  if (m.delivered) return { label: 'Delivered', cls: 'delivered', icon: '✓✓' }
+  return { label: 'Sent', cls: 'sent', icon: '✓' }
+}
+
 async function loadConversations() {
   try {
     const res = await messageApi.conversations(Object.keys(listFilter.value).length ? listFilter.value : undefined)
@@ -271,7 +277,11 @@ onUnmounted(() => {
                     <span>{{ m.request.property_type }} · {{ m.request.city }}, {{ m.request.state }}</span>
                   </div>
                 </div>
-                <span class="time">{{ fmtTime(m.created_at) }}</span>
+                <span class="time" v-if="m.sender_id === auth.user?.id">
+                  {{ fmtTime(m.created_at) }}
+                  <i class="receipt" :class="receipt(m).cls" :title="receipt(m).label">{{ receipt(m).icon }}</i>
+                </span>
+                <span class="time" v-else>{{ fmtTime(m.created_at) }}</span>
               </div>
             </div>
           </div>
@@ -530,6 +540,21 @@ onUnmounted(() => {
 .bubble .time {
   display: block;
   text-align: right;
+}
+
+.receipt {
+  font-style: normal;
+  font-weight: 700;
+  margin-left: 4px;
+  color: #b8bdc4;
+}
+
+.receipt.delivered {
+  color: #7f8c9b;
+}
+
+.receipt.seen {
+  color: #0a84ff;
 }
 
 .quote-card {

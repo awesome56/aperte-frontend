@@ -269,6 +269,7 @@ export interface Message extends MessageQuote {
   receiver_id: number
   body: string
   read: number
+  delivered: number
   property_id: number | null
   request_id: number | null
   created_at: string
