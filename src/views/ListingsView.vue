@@ -17,7 +17,9 @@ const filters = reactive({
   min_price: (route.query.min_price as string) || '',
   max_price: (route.query.max_price as string) || '',
   bedrooms: (route.query.bedrooms as string) || '',
+  bathrooms: (route.query.bathrooms as string) || '',
   amenities: (route.query.amenities as string) || '',
+  available: (route.query.available as string) || '',
 })
 
 const sort = ref((route.query.sort as string) || 'newest')
@@ -27,6 +29,8 @@ const loading = ref(true)
 const error = ref('')
 const page = ref(1)
 const sheetOpen = ref(false)
+const liveCount = ref<number | null>(null)
+let liveTimer: number | null = null
 
 const CITIES = ['Lagos', 'Abuja', 'Port Harcourt', 'Ibadan', 'Benin City', 'Enugu', 'Kano', 'Owerri', 'Abeokuta', 'Onitsha']
 const AMENITY_OPTIONS = ['furnished', 'parking', 'security', 'ac', 'backup_power', 'swimming_pool', 'gym', 'elevator']
@@ -41,19 +45,31 @@ const activeFilterCount = computed(() =>
   Object.values(filters).filter((v) => v !== '').length,
 )
 
-async function load() {
-  loading.value = true
-  error.value = ''
-  const params: Record<string, unknown> = {
-    page: page.value,
-    per_page: 12,
-    sort: sort.value,
-  }
+const summaryText = computed(() => {
+  const parts: string[] = []
+  if (filters.city) parts.push(filters.city)
+  if (filters.purpose) parts.push(filters.purpose === 'rent' ? 'Rent' : 'Sale')
+  if (filters.bedrooms) parts.push(`${filters.bedrooms}+ beds`)
+  if (filters.category) parts.push(filters.category.replace('_', ' '))
+  return parts.length ? parts.join(' · ') : 'All properties'
+})
+
+function filterParams(includePage = true): Record<string, unknown> {
+  const params: Record<string, unknown> = {}
+  if (includePage) params.page = page.value
+  params.per_page = 12
+  params.sort = sort.value
   Object.entries(filters).forEach(([k, v]) => {
     if (v) params[k] = v
   })
+  return params
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
   try {
-    const res = await propertyApi.browse(params)
+    const res = await propertyApi.browse(filterParams())
     results.value = res.data.data
     meta.value = res.data.meta
   } catch {
@@ -62,6 +78,25 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+// live match count while the filter sheet is open
+function updateLiveCount() {
+  if (liveTimer != null) window.clearTimeout(liveTimer)
+  liveTimer = window.setTimeout(async () => {
+    try {
+      const res = await propertyApi.browse({ ...filterParams(false), per_page: 1 })
+      liveCount.value = res.data.meta.total_count
+    } catch {
+      liveCount.value = null
+    }
+  }, 350)
+}
+
+function openSheet() {
+  sheetOpen.value = true
+  liveCount.value = null
+  updateLiveCount()
 }
 
 function apply() {
@@ -84,7 +119,8 @@ function apply() {
 function reset() {
   Object.keys(filters).forEach((k) => (filters[k as keyof typeof filters] = ''))
   sort.value = 'newest'
-  apply()
+  liveCount.value = null
+  updateLiveCount()
 }
 
 watch(page, load)
@@ -111,14 +147,28 @@ onMounted(load)
     <div class="container">
       <!-- top bar: filter toggle + sort + count -->
       <div class="topbar-row">
-        <button class="btn btn-outline filter-btn" @click="sheetOpen = true">
+        <button class="btn btn-outline filter-btn" @click="openSheet">
           Filters
           <span v-if="activeFilterCount" class="filter-count">{{ activeFilterCount }}</span>
         </button>
         <p class="count">{{ meta.total_count.toLocaleString() }} propert{{ meta.total_count === 1 ? 'y' : 'ies' }}</p>
-        <select v-model="sort" class="sort-select" @change="apply" aria-label="Sort results">
+        <select v-model="sort" class="sort-select" @click.self="() => {}" @change="apply" aria-label="Sort results">
           <option v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
         </select>
+      </div>
+
+      <!-- compact mobile search bar -->
+      <div class="mobile-search">
+        <div class="ms-row">
+          <button class="ms-loc" @click="openSheet">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <span>{{ summaryText }}</span>
+          </button>
+          <button class="ms-filter" :class="{ on: activeFilterCount > 0 }" @click="openSheet">Filter{{ activeFilterCount ? ` (${activeFilterCount})` : '' }}</button>
+          <select v-model="sort" class="ms-sort" @change="apply" aria-label="Sort">
+            <option v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
+          </select>
+        </div>
       </div>
 
       <div class="layout">
@@ -213,52 +263,88 @@ onMounted(load)
       </div>
     </div>
 
-    <!-- mobile bottom-sheet filters -->
+    <!-- mobile near-fullscreen filter sheet -->
     <Teleport to="body">
       <div v-if="sheetOpen" class="sheet-backdrop" @click="sheetOpen = false"></div>
       <div v-if="sheetOpen" class="sheet" role="dialog" aria-label="Filters">
         <div class="sheet-head">
           <h3>Filters</h3>
-          <button class="sheet-close" @click="sheetOpen = false">×</button>
+          <button class="sheet-close" @click="sheetOpen = false" aria-label="Close filters">×</button>
         </div>
         <div class="sheet-body">
           <div class="filter-group">
-            <label>Category</label>
-            <select v-model="filters.category"><option value="">All categories</option><option value="property">Property</option><option value="land">Land</option><option value="hotel">Hotel</option><option value="hall">Hall</option><option value="event_center">Event Center</option><option value="shortlet">Shortlet</option></select>
+            <label>Location</label>
+            <select v-model="filters.city" @change="updateLiveCount">
+              <option value="">All cities</option>
+              <option v-for="c in CITIES" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Price (₦)</label>
+            <div class="price-pair">
+              <input v-model="filters.min_price" type="number" min="0" placeholder="Min" @change="updateLiveCount" />
+              <span class="dash">–</span>
+              <input v-model="filters.max_price" type="number" min="0" placeholder="Max" @change="updateLiveCount" />
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Property type</label>
+            <select v-model="filters.category" @change="updateLiveCount">
+              <option value="">All categories</option>
+              <option value="property">Property</option>
+              <option value="land">Land</option>
+              <option value="hotel">Hotel</option>
+              <option value="hall">Hall</option>
+              <option value="event_center">Event Center</option>
+              <option value="shortlet">Shortlet</option>
+            </select>
           </div>
           <div class="filter-group">
             <label>Purpose</label>
-            <select v-model="filters.purpose"><option value="">All</option><option value="rent">For Rent</option><option value="sale">For Sale</option><option value="both">Rent & Sale</option></select>
-          </div>
-          <div class="filter-group">
-            <label>City</label>
-            <select v-model="filters.city"><option value="">All cities</option><option v-for="c in CITIES" :key="c" :value="c">{{ c }}</option></select>
+            <select v-model="filters.purpose" @change="updateLiveCount">
+              <option value="">All</option>
+              <option value="rent">For Rent</option>
+              <option value="sale">For Sale</option>
+              <option value="both">Rent & Sale</option>
+            </select>
           </div>
           <div class="filter-group">
             <label>Bedrooms</label>
-            <select v-model="filters.bedrooms"><option value="">Any</option><option v-for="n in 6" :key="n" :value="String(n)">{{ n }}+</option></select>
+            <select v-model="filters.bedrooms" @change="updateLiveCount">
+              <option value="">Any</option>
+              <option v-for="n in 6" :key="n" :value="String(n)">{{ n }}+</option>
+            </select>
           </div>
           <div class="filter-group">
-            <label>Min Price (₦)</label>
-            <input v-model="filters.min_price" type="number" min="0" placeholder="0" />
-          </div>
-          <div class="filter-group">
-            <label>Max Price (₦)</label>
-            <input v-model="filters.max_price" type="number" min="0" placeholder="No max" />
+            <label>Bathrooms</label>
+            <select v-model="filters.bathrooms" @change="updateLiveCount">
+              <option value="">Any</option>
+              <option v-for="n in 5" :key="n" :value="String(n)">{{ n }}+</option>
+            </select>
           </div>
           <div class="filter-group">
             <label>Amenities</label>
             <div class="amenity-list">
               <label v-for="a in AMENITY_OPTIONS" :key="a" class="amenity">
-                <input v-model="filters.amenities" type="checkbox" :value="a" />
+                <input v-model="filters.amenities" type="checkbox" :value="a" @change="updateLiveCount" />
                 <span>{{ a.replace('_', ' ') }}</span>
               </label>
             </div>
           </div>
+          <div class="filter-group">
+            <label>Availability</label>
+            <select v-model="filters.available" @change="updateLiveCount">
+              <option value="">Any</option>
+              <option value="1">Available</option>
+              <option value="0">Unavailable</option>
+            </select>
+          </div>
         </div>
         <div class="sheet-foot">
-          <button class="btn btn-outline" @click="reset">Reset</button>
-          <button class="btn btn-primary" @click="apply">Show results</button>
+          <button class="btn btn-outline" @click="reset">Clear All</button>
+          <button class="btn btn-primary" @click="apply">
+            Show {{ liveCount != null ? liveCount.toLocaleString() : '' }} Properties
+          </button>
         </div>
       </div>
     </Teleport>
@@ -314,6 +400,81 @@ onMounted(load)
   padding: 9px 12px;
   font-size: 0.9rem;
   background: #fff;
+}
+
+/* compact mobile search bar */
+.mobile-search {
+  display: none;
+  margin-bottom: 14px;
+}
+
+.ms-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ms-loc {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: #fff;
+  color: var(--color-dark, #222);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ms-loc span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ms-filter {
+  border: 1.5px solid var(--color-primary, #0a84ff);
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #fff;
+  color: var(--color-primary, #0a84ff);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ms-filter.on {
+  background: var(--color-primary, #0a84ff);
+  color: #fff;
+}
+
+.ms-sort {
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 10px;
+  padding: 11px 8px;
+  font-size: 0.82rem;
+  background: #fff;
+  max-width: 130px;
+}
+
+.price-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-pair input {
+  flex: 1;
+  min-width: 0;
+}
+
+.price-pair .dash {
+  color: var(--color-muted, #888);
 }
 
 .layout {
@@ -435,7 +596,7 @@ onMounted(load)
   z-index: 951;
   background: #fff;
   border-radius: 18px 18px 0 0;
-  max-height: 82vh;
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   animation: sheet-up 0.22s ease;
@@ -503,6 +664,9 @@ onMounted(load)
   }
   .filter-btn {
     display: inline-flex;
+  }
+  .mobile-search {
+    display: block;
   }
   .grid {
     grid-template-columns: 1fr 1fr;
