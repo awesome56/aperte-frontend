@@ -3,14 +3,14 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { unreadCount } from '@/messaging/stream'
-import { USER_BOTTOM_NAV, VISITOR_BOTTOM_NAV } from '@/config/navigation'
+import { USER_BOTTOM_NAV, VISITOR_BOTTOM_NAV, type BottomNavItem } from '@/config/navigation'
 
 const route = useRoute()
 const auth = useAuthStore()
 
 const hidden = computed(() => route.path.startsWith('/admin') || route.path === '/login' || route.path === '/register')
 
-const items = computed(() => (auth.isAuthenticated ? USER_BOTTOM_NAV : VISITOR_BOTTOM_NAV))
+const items = computed<BottomNavItem[]>(() => (auth.isAuthenticated ? USER_BOTTOM_NAV : VISITOR_BOTTOM_NAV))
 
 function isActive(to?: string) {
   if (!to) return false
