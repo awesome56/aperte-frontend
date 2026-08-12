@@ -190,29 +190,37 @@ function capturePerformance(path: string) {
   let lcp = 0
   let cls = 0
 
+  const supported = (PerformanceObserver as any).supportedEntryTypes || []
+
   try {
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        if (entry.entryType === 'paint' && entry.name === 'first-contentful-paint') {
-          fcp = Math.round(entry.startTime)
+    if (supported.includes('paint')) {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.entryType === 'paint' && entry.name === 'first-contentful-paint') {
+            fcp = Math.round(entry.startTime)
+          }
         }
-      }
-      report()
-    }).observe({ type: 'paint', buffered: true })
+        report()
+      }).observe({ type: 'paint', buffered: true })
+    }
 
-    new PerformanceObserver((list) => {
-      const entries = list.getEntries()
-      const last = entries[entries.length - 1]
-      if (last) lcp = Math.round(last.startTime)
-      report()
-    }).observe({ type: 'largest-contentful-paint', buffered: true })
+    if (supported.includes('largest-contentful-paint')) {
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries()
+        const last = entries[entries.length - 1]
+        if (last) lcp = Math.round(last.startTime)
+        report()
+      }).observe({ type: 'largest-contentful-paint', buffered: true })
+    }
 
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        if (!(entry as any).hadRecentInput) cls += (entry as any).value || 0
-      }
-      report()
-    }).observe({ type: 'layout-shift', buffered: true })
+    if (supported.includes('layout-shift')) {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (!(entry as any).hadRecentInput) cls += (entry as any).value || 0
+        }
+        report()
+      }).observe({ type: 'layout-shift', buffered: true })
+    }
   } catch {
     // PerformanceObserver unsupported; navigation timing still captured below
   }
