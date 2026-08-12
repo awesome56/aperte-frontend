@@ -268,6 +268,8 @@ export interface Message extends MessageQuote {
   sender_id: number
   receiver_id: number
   body: string
+  voice_url: string | null
+  voice_duration: number | null
   read: number
   delivered: number
   property_id: number | null
@@ -320,6 +322,15 @@ export interface CallSignal {
 export const messageApi = {
   send: (data: { body: string; receiver_id?: number; property_id?: number; request_id?: number }) =>
     api.post<Message>('/messages/', data),
+  voice: (data: { file: Blob; receiver_id: number; voice_duration: number; property_id?: number; request_id?: number }) => {
+    const fd = new FormData()
+    fd.append('file', data.file, 'voice-note.webm')
+    fd.append('receiver_id', String(data.receiver_id))
+    fd.append('voice_duration', String(data.voice_duration))
+    if (data.property_id) fd.append('property_id', String(data.property_id))
+    if (data.request_id) fd.append('request_id', String(data.request_id))
+    return api.post<Message>('/messages/voice', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
   conversations: (params?: Record<string, unknown>) => api.get<{ data: Conversation[] }>('/messages/conversations', { params }),
   thread: (userId: number, params?: Record<string, unknown>) => api.get<MessageThread>(`/messages/conversation/${userId}`, { params }),
   unreadCount: () => api.get<{ unread_count: number }>('/messages/unread-count'),

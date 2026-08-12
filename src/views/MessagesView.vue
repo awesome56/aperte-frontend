@@ -4,7 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { messageApi, type Conversation, type Message } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { unreadCount, on as onStreamEvent } from '@/messaging/stream'
-import { callManager } from '@/calls/callManager'
+// calls temporarily disabled — see callManager.ts
+// import { callManager } from '@/calls/callManager'
 
 const route = useRoute()
 const router = useRouter()
@@ -142,6 +143,135 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault()
     send()
   }
+}
+
+// ---------- voice notes ----------
+
+const recording = ref(false)
+const recordingSeconds = ref(0)
+const recordingBlob = ref<Blob | null>(null)
+const sendingVoice = ref(false)
+let mediaRecorder: MediaRecorder | null = null
+let mediaChunks: Blob[] = []
+let mediaStream: MediaStream | null = null
+let recordTimer: number | null = null
+let recordStartedAt = 0
+const voiceErrors = ref('')
+
+async function toggleRecord() {
+  if (recording.value) {
+    stopRecord()
+    return
+  }
+  if (!activeUserId.value || sendingVoice.value) return
+  voiceErrors.value = ''
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaChunks = []
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : ''
+    mediaRecorder = mime ? new MediaRecorder(mediaStream, { mimeType: mime }) : new MediaRecorder(mediaStream)
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size) mediaChunks.push(e.data)
+    }
+    mediaRecorder.onstop = () => {
+      recordingBlob.value = new Blob(mediaChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
+      sendVoice()
+    }
+    mediaRecorder.start()
+    recordStartedAt = Date.now()
+    recording.value = true
+    recordingSeconds.value = 0
+    recordTimer = window.setInterval(() => {
+      recordingSeconds.value = Math.round((Date.now() - recordStartedAt) / 1000)
+    }, 1000)
+  } catch {
+    voiceErrors.value = 'Microphone access denied.'
+  }
+}
+
+function stopRecord() {
+  if (recordTimer != null) {
+    window.clearInterval(recordTimer)
+    recordTimer = null
+  }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+  recording.value = false
+}
+
+async function sendVoice() {
+  const blob = recordingBlob.value
+  if (!blob || !activeUserId.value || sendingVoice.value) return
+  sendingVoice.value = true
+  voiceErrors.value = ''
+  try {
+    const res = await messageApi.voice({
+      file: blob,
+      receiver_id: activeUserId.value,
+      voice_duration: Math.max(1, Math.round((Date.now() - recordStartedAt) / 1000)),
+      property_id: quotePropertyId.value || undefined,
+      request_id: quoteRequestId.value || undefined,
+    })
+    messages.value.push(res.data)
+    recordingBlob.value = null
+    scrollToBottom()
+    await loadConversations()
+    import('@/analytics/tracker').then((m) =>
+      m.default.trackEvent('voice_note', 'conversion', { duration: res.data.voice_duration }),
+    )
+  } catch (e: any) {
+    voiceErrors.value = e.response?.data?.error || 'Failed to send voice note.'
+  } finally {
+    sendingVoice.value = false
+    mediaStream?.getTracks().forEach((t) => t.stop())
+    mediaStream = null
+  }
+}
+
+function fmtRecording(sec: number) {
+  const m = Math.floor(sec / 60)
+  return `${m}:${(sec % 60).toString().padStart(2, '0')}`
+}
+
+// ---------- voice playback ----------
+
+const playingId = ref<number | null>(null)
+
+function togglePlay(m: Message) {
+  if (playingId.value === m.id) {
+    // stop current
+    const el = document.getElementById(`voice-${m.id}`) as HTMLAudioElement | null
+    if (el) {
+      el.pause()
+      el.currentTime = 0
+    }
+    playingId.value = null
+    return
+  }
+  // pause any other
+  if (playingId.value != null) {
+    const prev = document.getElementById(`voice-${playingId.value}`) as HTMLAudioElement | null
+    if (prev) {
+      prev.pause()
+      prev.currentTime = 0
+    }
+  }
+  playingId.value = m.id
+  const el = document.getElementById(`voice-${m.id}`) as HTMLAudioElement | null
+  if (el) el.play().catch(() => (playingId.value = null))
+}
+
+function onVoiceEnded(id: number) {
+  if (playingId.value === id) playingId.value = null
+}
+
+function voiceDuration(m: Message) {
+  return m.voice_duration ? fmtRecording(m.voice_duration) : '0:01'
 }
 
 function initialsOf(name: string) {
@@ -284,7 +414,7 @@ onUnmounted(() => {
               <span class="time">{{ fmtDate(c.last_activity) }}</span>
             </div>
             <div class="convo-preview">
-              <span>{{ c.last_message.body }}</span>
+              <span>{{ c.last_message.voice_url ? 'Voice note' : c.last_message.body }}</span>
               <span v-if="c.unread_count" class="badge">{{ c.unread_count }}</span>
             </div>
             <div v-if="c.last_message.property || c.last_message.request" class="convo-quote">
@@ -310,12 +440,14 @@ onUnmounted(() => {
               </span>
             </div>
             <div class="head-actions">
+              <!-- calls temporarily disabled
               <button class="call-btn" title="Voice call" @click="callManager.startCall(threadUser.id, 'audio')">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2z"/></svg>
               </button>
               <button class="call-btn" title="Video call" @click="callManager.startCall(threadUser.id, 'video')">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
               </button>
+              -->
             </div>
           </header>
 
@@ -336,7 +468,26 @@ onUnmounted(() => {
               :class="{ mine: m.sender_id === auth.user?.id }"
             >
               <div class="bubble">
-                <p>{{ m.body }}</p>
+                <!-- voice note -->
+                <div v-if="m.voice_url" class="voice-note">
+                  <button
+                    class="voice-play"
+                    :class="{ playing: playingId === m.id }"
+                    @click="togglePlay(m)"
+                    :title="playingId === m.id ? 'Stop' : 'Play'"
+                  >
+                    <svg v-if="playingId !== m.id" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h4v12H6zm8 0h4v12h-4z"/></svg>
+                  </button>
+                  <audio
+                    :id="`voice-${m.id}`"
+                    :src="m.voice_url"
+                    preload="metadata"
+                    @ended="onVoiceEnded(m.id)"
+                  ></audio>
+                  <span class="voice-dur">{{ voiceDuration(m) }}</span>
+                </div>
+                <p v-if="m.body">{{ m.body }}</p>
                 <div v-if="m.property" class="quote-card">
                   <img v-if="m.property.dp" :src="m.property.dp" alt="" />
                   <div>
@@ -361,16 +512,29 @@ onUnmounted(() => {
           </div>
 
           <footer class="composer">
+            <!-- voice note recorder -->
+            <button
+              class="mic-btn"
+              :class="{ recording }"
+              :title="recording ? 'Stop recording' : 'Record voice note'"
+              @click="toggleRecord"
+            >
+              <svg v-if="!recording" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+              <span v-else class="rec-dot"></span>
+            </button>
+            <span v-if="recording" class="rec-timer">● {{ fmtRecording(recordingSeconds) }}</span>
+            <span v-if="sendingVoice" class="rec-timer">Sending…</span>
             <textarea
               v-model="draft"
               rows="2"
-              placeholder="Type a message…"
+              :placeholder="recording ? 'Recording…' : 'Type a message…'"
               @keydown="onKeydown"
             ></textarea>
-            <button class="btn btn-primary" :disabled="sending || !draft.trim()" @click="send">
+            <button class="btn btn-primary" :disabled="sending || !draft.trim() || recording" @click="send">
               {{ sending ? 'Sending…' : 'Send' }}
             </button>
           </footer>
+          <p v-if="voiceErrors" class="voice-err">{{ voiceErrors }}</p>
         </template>
 
         <div v-else class="chat-empty">
@@ -716,6 +880,97 @@ onUnmounted(() => {
   resize: none;
   font-family: inherit;
   font-size: 0.92rem;
+}
+
+/* voice notes */
+.mic-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: var(--color-bg-blue);
+  color: var(--color-primary);
+  flex-shrink: 0;
+  align-self: flex-end;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.mic-btn:hover {
+  transform: scale(1.08);
+}
+
+.mic-btn.recording {
+  background: #ff453a;
+  color: #fff;
+  animation: rec-pulse 1.2s infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 69, 58, 0); }
+}
+
+.rec-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.rec-timer {
+  align-self: center;
+  color: #ff453a;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.voice-err {
+  color: #ff453a;
+  font-size: 0.82rem;
+  padding: 4px 18px 8px;
+}
+
+.voice-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.voice-note audio {
+  display: none;
+}
+
+.voice-play {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: var(--color-primary);
+  color: #fff;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.voice-play:hover {
+  transform: scale(1.08);
+}
+
+.voice-play.playing {
+  background: #ff453a;
+}
+
+.voice-dur {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-empty {

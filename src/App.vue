@@ -4,7 +4,8 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppNavbar from '@/components/AppNavbar.vue'
 import AppFooter from '@/components/AppFooter.vue'
-import CallOverlay from '@/components/CallOverlay.vue'
+// calls temporarily disabled — see src/calls/callManager.ts
+// import CallOverlay from '@/components/CallOverlay.vue'
 import { startStream, stopStream, ensureStream } from '@/messaging/stream'
 
 const auth = useAuthStore()
@@ -39,7 +40,9 @@ onUnmounted(() => stopStream())
       <RouterView />
     </main>
     <AppFooter v-if="!isAdminArea" />
+    <!-- calls temporarily disabled
     <CallOverlay />
+    -->
   </div>
 </template>
 

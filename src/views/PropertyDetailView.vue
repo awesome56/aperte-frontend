@@ -121,6 +121,8 @@ function messageOwner() {
   })
 }
 
+// calls temporarily disabled
+/*
 function callOwner(type: 'audio' | 'video') {
   if (!property.value) return
   if (!auth.isAuthenticated) {
@@ -129,6 +131,7 @@ function callOwner(type: 'audio' | 'video') {
   }
   import('@/calls/callManager').then(({ callManager }) => callManager.startCall(property.value!.user_id, type))
 }
+*/
 
 async function submitBooking() {
   bookingSubmitting.value = true
@@ -254,10 +257,12 @@ onMounted(async () => {
           >
             Message Owner
           </button>
+          <!-- calls temporarily disabled
           <div v-if="!isOwner" class="call-row">
             <button class="btn btn-outline btn-block" @click="callOwner('audio')">Call Owner</button>
             <button class="btn btn-outline btn-block" @click="callOwner('video')">Video Call</button>
           </div>
+          -->
           <RouterLink
             v-if="!isOwner && contactEmail"
             :to="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"
