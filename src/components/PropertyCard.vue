@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { favoriteApi, type Property } from '@/api'
+import { computed } from 'vue'
+import type { Property } from '@/api'
 import { categoryLabels, purposeLabels, formatPrice } from '@/api'
+import FavoriteButton from '@/components/FavoriteButton.vue'
 
 const props = defineProps<{ property: Property }>()
 
-const router = useRouter()
-const auth = useAuthStore()
-
 const dpImage = computed(() => {
-  // browse/list responses provide a ready `dp` URL; fall back to the images array
   if (props.property.dp) return props.property.dp
   const imgs = props.property.images || []
   const dp = imgs.find((i: any) => i.dp === 1)
@@ -21,110 +16,236 @@ const dpImage = computed(() => {
 const badge = computed(() => categoryLabels[props.property.category] || props.property.category)
 const purpose = computed(() => purposeLabels[props.property.purpose] || props.property.purpose)
 
-const favorited = ref(Boolean(props.property.favorited))
-const favoritesCount = ref(props.property.favorites_count || 0)
+const imageCount = computed(() => props.property.image_count ?? props.property.images?.length ?? 0)
+const videoCount = computed(() => props.property.video_count ?? props.property.videos?.length ?? 0)
 
-async function toggleFavorite(e: Event) {
-  e.preventDefault()
-  e.stopPropagation()
-  if (!auth.isAuthenticated) {
-    router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
-    return
-  }
-  try {
-    await favoriteApi.toggle(props.property.id)
-    favorited.value = !favorited.value
-    favoritesCount.value += favorited.value ? 1 : -1
-  } catch {
-    // ignore toggle errors (e.g. offline)
-  }
-}
+const verified = computed(() => Boolean(props.property.approved))
 </script>
 
 <template>
-  <div class="card">
-    <button class="heart" :class="{ active: favorited }" title="Save to favorites" @click="toggleFavorite">
-      <svg v-if="favorited" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-      </svg>
-      <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-      </svg>
-    </button>
-    <RouterLink :to="`/properties/${property.id}`" class="media">
+  <article class="card">
+    <RouterLink :to="`/properties/${property.id}`" class="media" :aria-label="property.title">
       <img v-if="dpImage" :src="dpImage" :alt="property.title" loading="lazy" />
       <div v-else class="placeholder">{{ badge }}</div>
-      <span class="badge" :class="property.purpose">{{ purpose }}</span>
+
+      <div class="media-top">
+        <span class="badge" :class="property.purpose">{{ purpose }}</span>
+        <span v-if="verified" class="verified-badge" title="Aperte verified">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+          Verified
+        </span>
+      </div>
+
+      <FavoriteButton class="heart" :property-id="property.id" :favorited="property.favorited" />
+
+      <div class="media-badges">
+        <span v-if="videoCount" class="count-badge video" title="Video available">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </span>
+        <span v-if="imageCount" class="count-badge">{{ imageCount }}</span>
+      </div>
     </RouterLink>
+
     <div class="body">
       <span class="price">{{ formatPrice(property.price, property.currency) }}</span>
       <h3 class="title"><RouterLink :to="`/properties/${property.id}`">{{ property.title }}</RouterLink></h3>
-      <p class="loc">{{ property.location }}, {{ property.city }}, {{ property.state }}</p>
-      <div v-if="property.contact_phone || property.contact_email" class="contacts">
-        <a v-if="property.contact_phone" :href="`tel:${property.contact_phone}`">{{ property.contact_phone }}</a>
-        <a v-if="property.contact_email" :href="`mailto:${property.contact_email}`">{{ property.contact_email }}</a>
-      </div>
-      <div class="meta">
-        <span v-if="property.bedrooms != null">{{ property.bedrooms }} Beds</span>
-        <span v-if="property.bathrooms != null">{{ property.bathrooms }} Bath</span>
+      <p class="loc">{{ property.city }}, {{ property.state }}</p>
+
+      <div class="specs">
+        <span v-if="property.bedrooms != null">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M2 16h20v3H2zM3 15V9a2 2 0 0 1 2-2h3l2 3h4V7h4a2 2 0 0 1 2 2v6H3z"/></svg>
+          {{ property.bedrooms }}
+        </span>
+        <span v-if="property.bathrooms != null">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm9.5 3h-1a1.5 1.5 0 0 0-1.5 1.5V10H7V7.5A1.5 1.5 0 0 0 5.5 6h-1A1.5 1.5 0 0 0 3 7.5V13h18V7.5A1.5 1.5 0 0 0 19.5 6h-1A1.5 1.5 0 0 0 17 7.5V10h-3V7.5A1.5 1.5 0 0 0 12.5 6h-.1A1.5 1.5 0 0 0 11 7.5V10H9V7.5A1.5 1.5 0 0 0 7.5 6H7a2 2 0 0 0-1.5.7V13h13V7.5A1.5 1.5 0 0 0 17 6h-1a1.5 1.5 0 0 0-1.5 1.5V10h1V7.5zM2 15h20v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1z"/></svg>
+          {{ property.bathrooms }}
+        </span>
+        <span v-if="property.area != null">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+          {{ property.area }} m²
+        </span>
       </div>
     </div>
-  </div>
+  </article>
 </template>
 
 <style scoped>
 .card {
   background: #fff;
-  border-radius: 8px;
+  border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  transition: transform 0.2s;
+  border: 1px solid #eef0f3;
+  box-shadow: 0 2px 12px rgba(16, 30, 60, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
   width: 100%;
-  position: relative;
+  display: flex;
+  flex-direction: column;
 }
-.card:hover { transform: translateY(-4px); }
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(16, 30, 60, 0.12);
+}
+
+.media {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #eef0f3;
+}
+
+.media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s;
+}
+
+.card:hover .media img {
+  transform: scale(1.04);
+}
+
+.placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #e8ecf4, #d9e2f0);
+  color: #8a94a6;
+  font-size: 1rem;
+}
+
+.media-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 48px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.badge {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  backdrop-filter: blur(4px);
+}
+
+.badge.rent {
+  background: rgba(16, 138, 74, 0.92);
+  color: #fff;
+}
+
+.badge.sale {
+  background: rgba(216, 60, 60, 0.92);
+  color: #fff;
+}
+
+.badge.both {
+  background: rgba(10, 84, 255, 0.92);
+  color: #fff;
+}
+
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #1a7f37;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
 
 .heart {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 5;
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.92);
-  color: #8a8f9c;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  transition: transform 0.15s, color 0.15s;
+  top: 10px;
+  right: 10px;
 }
-.heart:hover { transform: scale(1.1); color: #ff4757; }
-.heart.active { color: #ff4757; }
 
-.media { position: relative; display: block; height: 340px; overflow: hidden; }
-.media img { width: 100%; height: 100%; object-fit: cover; }
-.placeholder { width:100%; height:100%; display:grid; place-items:center; background:#e8eaef; color:#9aa0ac; font-size:1rem; }
-
-.badge {
-  position: absolute; top: 14px; left: 14px;
-  padding: 9px 18px; border-radius: 8px;
-  font-size: 0.88rem; font-weight: 500;
+.media-badges {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
 }
-.badge.rent { background: var(--clr-green-bg); color: var(--clr-green); }
-.badge.sale { background: var(--clr-red-bg); color: var(--clr-red); }
-.badge.both { background: var(--clr-blue-bg); color: var(--clr-blue); }
 
-.body { padding: 18px 20px 20px; }
-.price { font-size: 1.72rem; font-weight: 600; color: var(--clr-dark); display: block; }
-.title { margin: 4px 0 4px; font-size: 1.2rem; font-weight: 500; }
-.title a { color: var(--clr-dark); }
-.title a:hover { color: var(--clr-blue); }
-.loc { color: var(--clr-muted); font-size: 1rem; margin-bottom: 12px; }
-.contacts { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
-.contacts a { color: var(--clr-blue); font-size: 0.85rem; }
-.contacts a:hover { text-decoration: underline; }
-.meta { display: flex; gap: 18px; color: var(--clr-dark); font-size: 1rem; font-weight: 400; }
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(10, 12, 20, 0.62);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.count-badge.video {
+  background: rgba(255, 255, 255, 0.94);
+  color: #0a84ff;
+}
+
+.body {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.price {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--clr-dark, #151a24);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.title a {
+  color: var(--clr-dark, #1c1c1c);
+}
+
+.title a:hover {
+  color: var(--clr-blue, #0a84ff);
+}
+
+.loc {
+  color: var(--clr-muted, #666);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.specs {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  color: var(--clr-dark, #333);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.specs span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.specs svg {
+  color: var(--clr-blue2, #0a84ff);
+}
 </style>

@@ -46,6 +46,8 @@ export interface Property {
   available: number
   approved: number
   views?: number
+  image_count?: number
+  video_count?: number
   favorites_count?: number
   favorited?: boolean
   owner_is_admin?: boolean
