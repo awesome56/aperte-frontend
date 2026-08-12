@@ -43,7 +43,24 @@ const initials = computed(() => {
   return auth.user.full_name.split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase()
 })
 
-function logout() { auth.logout(); router.push('/') }
+const menuOpen = ref(false)
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+}
+
+function closeMenu() {
+  menuOpen.value = false
+}
+
+function logout() {
+  menuOpen.value = false
+  auth.logout()
+  router.push('/')
+}
+
+// close the mobile menu on navigation
+watch(() => router.currentRoute.value.fullPath, closeMenu)
 </script>
 
 <template>
@@ -89,8 +106,42 @@ function logout() { auth.logout(); router.push('/') }
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
           <button class="logout-btn" @click="logout">Logout</button>
         </template>
+
+        <!-- Hamburger (mobile only) -->
+        <button class="hamburger" :class="{ open: menuOpen }" aria-label="Menu" @click="toggleMenu">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </div>
+
+    <!-- Mobile menu -->
+    <Teleport to="body">
+      <div v-if="menuOpen" class="mobile-menu-backdrop" @click="closeMenu"></div>
+      <div v-if="menuOpen" class="mobile-menu">
+        <RouterLink to="/" @click="closeMenu">Home</RouterLink>
+        <a href="/#about" @click="closeMenu">About</a>
+        <RouterLink to="/listings" @click="closeMenu">Listings</RouterLink>
+        <RouterLink to="/browse-requests" @click="closeMenu">Requests</RouterLink>
+        <a href="/#services" @click="closeMenu">Services</a>
+        <a href="/listings" @click="closeMenu">Blogs</a>
+
+        <template v-if="auth.isAuthenticated">
+          <div class="menu-sep"></div>
+          <RouterLink to="/dashboard" @click="closeMenu">Dashboard</RouterLink>
+          <RouterLink to="/messages" @click="closeMenu">
+            Messages
+            <span v-if="unread" class="unread-dot">{{ unread > 99 ? '99+' : unread }}</span>
+          </RouterLink>
+          <RouterLink to="/create-request" @click="closeMenu">Post a Request</RouterLink>
+          <RouterLink to="/favorites" @click="closeMenu">Favorites</RouterLink>
+          <RouterLink v-if="auth.isStaff" to="/admin" @click="closeMenu">Admin</RouterLink>
+        </template>
+        <template v-else>
+          <div class="menu-sep"></div>
+          <RouterLink to="/login" @click="closeMenu">Login / Register</RouterLink>
+        </template>
+      </div>
+    </Teleport>
   </header>
 </template>
 
@@ -173,5 +224,99 @@ function logout() { auth.logout(); router.push('/') }
   .avatar { width: 34px; height: 34px; }
   .nav-end .btn { padding: 9px 14px; font-size: 0.88rem; }
   .logout-btn { font-size: 0.85rem; }
+}
+
+/* Hamburger (visible on mobile only) */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.hamburger span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: var(--clr-dark, #1c1c1c);
+  border-radius: 2px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+}
+
+/* Mobile dropdown menu */
+.mobile-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(10, 12, 20, 0.4);
+}
+
+.mobile-menu {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  z-index: 901;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  padding: 10px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
+.mobile-menu a {
+  padding: 13px 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--clr-dark, #1c1c1c);
+  border-bottom: 1px solid #f2f2f4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-menu a:hover,
+.mobile-menu a.router-link-active {
+  color: var(--clr-blue, #0a84ff);
+}
+
+.mobile-menu .menu-sep {
+  height: 1px;
+  background: #e5e5e7;
+  margin: 8px 0;
+}
+
+@media (min-width: 769px) {
+  .mobile-menu,
+  .mobile-menu-backdrop {
+    display: none;
+  }
 }
 </style>
