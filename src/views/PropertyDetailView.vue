@@ -143,6 +143,36 @@ const verificationEmail = ref('')
 const verifyCode = ref('')
 const verifying = ref(false)
 const resending = ref(false)
+// document submission (properties without a contact email)
+const documentMode = ref(false)
+const documentFile = ref<File | null>(null)
+const uploadingDoc = ref(false)
+
+const claimByDocument = computed(() => Boolean(property.value?.owner_is_admin && !property.value?.contact_email))
+
+function onDocumentPick(e: Event) {
+  documentFile.value = (e.target as HTMLInputElement).files?.[0] || null
+  claimErr.value = ''
+}
+
+async function submitDocumentClaim() {
+  if (!property.value || !documentFile.value) return
+  uploadingDoc.value = true
+  claimMsg.value = ''
+  claimErr.value = ''
+  try {
+    const res = await propertyApi.claimWithDocument(property.value.id, documentFile.value)
+    claimStatus.value = res.data.claim.status
+    claimMsg.value = res.data.message
+    import('@/analytics/tracker').then((m) =>
+      m.default.trackEvent('property_claim_document', 'conversion', { property_id: property.value!.id }),
+    )
+  } catch (e: any) {
+    claimErr.value = e.response?.data?.error || 'Failed to submit claim.'
+  } finally {
+    uploadingDoc.value = false
+  }
+}
 
 async function claimProperty() {
   if (!property.value) return
@@ -335,50 +365,88 @@ onMounted(async () => {
 
           <!-- Claim admin-listed property (Google-style verification flow) -->
           <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
-            <template v-if="!claimStatus">
-              <p class="claim-note">This listing was posted by the site admin and is available to be claimed. Claiming verifies your ownership with a code sent by email.</p>
-              <button class="btn btn-primary btn-block" :disabled="claiming" @click="claimProperty">
-                {{ claiming ? 'Submitting…' : 'Claim This Property' }}
-              </button>
-            </template>
-
-            <!-- Step 1: enter the emailed verification code -->
-            <template v-else-if="claimStatus === 'pending_verification'">
-              <p class="claim-note">
-                We sent a 6-digit verification code to <strong>{{ verificationEmail || 'your email' }}</strong>.
-                Enter it below to confirm ownership.
+            <!-- document-mode properties (no contact email) -->
+            <template v-if="claimByDocument">
+              <p v-if="!claimStatus" class="claim-note">
+                This listing was posted by the site admin and is available to be claimed.
+                Upload an ownership document (PDF, image or Word file) — the admin will review it.
               </p>
-              <div class="verify-row">
-                <input
-                  v-model="verifyCode"
-                  class="verify-input"
-                  placeholder="6-digit code"
-                  maxlength="6"
-                  :disabled="verifying"
-                />
-                <button class="btn btn-primary" :disabled="verifying || verifyCode.trim().length < 6" @click="verifyClaim">
-                  {{ verifying ? 'Verifying…' : 'Verify' }}
+              <template v-if="!claimStatus">
+                <label class="doc-pick">
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.webp" @change="onDocumentPick" />
+                  {{ documentFile ? documentFile.name : 'Choose a document…' }}
+                </label>
+                <button
+                  class="btn btn-primary btn-block"
+                  :disabled="!documentFile || uploadingDoc"
+                  @click="submitDocumentClaim"
+                >
+                  {{ uploadingDoc ? 'Uploading…' : 'Submit Claim' }}
                 </button>
-              </div>
-              <button class="resend-link" :disabled="resending" @click="resendClaimCode">
-                {{ resending ? 'Sending…' : 'Resend code' }}
+              </template>
+              <p v-else-if="claimStatus === 'pending'" class="claim-status pending">
+                Your document has been submitted — pending review by the admin.
+              </p>
+              <p v-else-if="claimStatus === 'approved'" class="claim-status approved">
+                You own this property.
+              </p>
+              <p v-else-if="claimStatus === 'rejected'" class="claim-status rejected">
+                Your previous claim was declined. You can try again with another document.
+              </p>
+              <p v-if="claimMsg" class="claim-status approved">{{ claimMsg }}</p>
+              <p v-if="claimErr" class="claim-status rejected">{{ claimErr }}</p>
+              <button v-if="claimStatus === 'rejected'" class="btn btn-outline btn-sm" @click="claimStatus = null">
+                Claim Again
               </button>
             </template>
 
-            <p v-else-if="claimStatus === 'pending'" class="claim-status pending">
-              Verification complete — your claim is pending review by the admin.
-            </p>
-            <p v-else-if="claimStatus === 'approved'" class="claim-status approved">
-              You own this property.
-            </p>
-            <p v-else-if="claimStatus === 'rejected'" class="claim-status rejected">
-              Your previous claim was declined. You can try again.
-              <button class="btn btn-outline btn-sm" :disabled="claiming" @click="claimProperty">
-                {{ claiming ? 'Submitting…' : 'Claim Again' }}
-              </button>
-            </p>
-            <p v-if="claimMsg" class="claim-status approved">{{ claimMsg }}</p>
-            <p v-if="claimErr" class="claim-status rejected">{{ claimErr }}</p>
+            <!-- email-verification properties -->
+            <template v-else>
+              <template v-if="!claimStatus">
+                <p class="claim-note">This listing was posted by the site admin and is available to be claimed. Claiming verifies your ownership with a code sent by email.</p>
+                <button class="btn btn-primary btn-block" :disabled="claiming" @click="claimProperty">
+                  {{ claiming ? 'Submitting…' : 'Claim This Property' }}
+                </button>
+              </template>
+
+              <!-- Step 1: enter the emailed verification code -->
+              <template v-else-if="claimStatus === 'pending_verification'">
+                <p class="claim-note">
+                  We sent a 6-digit verification code to <strong>{{ verificationEmail || 'your email' }}</strong>.
+                  Enter it below to confirm ownership.
+                </p>
+                <div class="verify-row">
+                  <input
+                    v-model="verifyCode"
+                    class="verify-input"
+                    placeholder="6-digit code"
+                    maxlength="6"
+                    :disabled="verifying"
+                  />
+                  <button class="btn btn-primary" :disabled="verifying || verifyCode.trim().length < 6" @click="verifyClaim">
+                    {{ verifying ? 'Verifying…' : 'Verify' }}
+                  </button>
+                </div>
+                <button class="resend-link" :disabled="resending" @click="resendClaimCode">
+                  {{ resending ? 'Sending…' : 'Resend code' }}
+                </button>
+              </template>
+
+              <p v-else-if="claimStatus === 'pending'" class="claim-status pending">
+                Verification complete — your claim is pending review by the admin.
+              </p>
+              <p v-else-if="claimStatus === 'approved'" class="claim-status approved">
+                You own this property.
+              </p>
+              <p v-else-if="claimStatus === 'rejected'" class="claim-status rejected">
+                Your previous claim was declined. You can try again.
+                <button class="btn btn-outline btn-sm" :disabled="claiming" @click="claimProperty">
+                  {{ claiming ? 'Submitting…' : 'Claim Again' }}
+                </button>
+              </p>
+              <p v-if="claimMsg" class="claim-status approved">{{ claimMsg }}</p>
+              <p v-if="claimErr" class="claim-status rejected">{{ claimErr }}</p>
+            </template>
           </div>
           <RouterLink
             v-if="!isOwner && contactEmail"
@@ -725,6 +793,23 @@ onMounted(async () => {
 .resend-link:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.doc-pick {
+  display: block;
+  border: 1.5px dashed var(--color-primary);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  color: var(--color-primary);
+  font-size: 0.88rem;
+  cursor: pointer;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.doc-pick input {
+  display: none;
 }
 
 .price {

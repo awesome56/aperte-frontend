@@ -203,6 +203,15 @@ export const propertyApi = {
   setDp: (id: number) => api.put(`/properties/images/${id}/dp`),
   claim: (id: number) =>
     api.post<{ message: string; claim: { id: number; status: string }; verification_email?: string }>(`/properties/${id}/claim`),
+  claimWithDocument: (id: number, file: File) => {
+    const fd = new FormData()
+    fd.append('document', file)
+    return api.post<{ message: string; claim: { id: number; status: string }; document_url?: string }>(
+      `/properties/${id}/claim`,
+      fd,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
+  },
   claimVerify: (id: number, code: string) =>
     api.post<{ message: string; claim: { id: number; status: string } }>(`/properties/${id}/claim/verify`, { code }),
   claimResend: (id: number) => api.get<{ message: string }>(`/properties/${id}/claim/resend`),
@@ -570,7 +579,8 @@ export interface Role {
 
 export interface PropertyClaim {
   id: number
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending_verification' | 'pending' | 'approved' | 'rejected'
+  document_url: string | null
   created_at: string
   updated_at: string
   property: {

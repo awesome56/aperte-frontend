@@ -71,6 +71,7 @@ onMounted(load)
           <th>Claimant</th>
           <th>Requested</th>
           <th>Status</th>
+          <th>Document</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -92,6 +93,19 @@ onMounted(load)
           <td>{{ fmtDate(c.created_at) }}</td>
           <td>
             <span class="pill" :class="c.status">{{ c.status }}</span>
+          </td>
+          <td>
+            <a
+              v-if="c.document_url"
+              :href="c.document_url"
+              target="_blank"
+              rel="noopener"
+              class="doc-link"
+              title="Open the submitted ownership document"
+            >
+              View document
+            </a>
+            <span v-else class="muted">—</span>
           </td>
           <td class="actions">
             <template v-if="c.status === 'pending'">
@@ -251,6 +265,15 @@ onMounted(load)
 .actions {
   display: flex;
   gap: 6px;
+}
+
+.doc-link {
+  color: #0a84ff;
+  font-size: 0.85rem;
+}
+
+.doc-link:hover {
+  text-decoration: underline;
 }
 
 .muted {
