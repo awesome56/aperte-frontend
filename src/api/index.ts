@@ -117,6 +117,28 @@ export interface Slot {
   booked_by: number | null
 }
 
+export interface Request {
+  id: number
+  user_id: number
+  title: string
+  description: string
+  property_type: string
+  sub_category: string | null
+  min_price: number | null
+  max_price: number | null
+  area: number | null
+  bedrooms: number | null
+  bathrooms: number | null
+  location: string
+  city: string
+  state: string
+  country: string
+  year_built: number | null
+  amenities: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
 export const authApi = {
   register: (data: Record<string, unknown>) => api.post<AuthResponse>('/auth/register', data),
   login: (data: { email: string; password: string }) => api.post<AuthResponse>('/auth/login', data),
@@ -205,6 +227,14 @@ export const slotApi = {
   create: (propertyId: number, data: Record<string, unknown>) => api.post<Slot>(`/slots/property/${propertyId}`, data),
   update: (id: number, data: Record<string, unknown>) => api.put<Slot>(`/slots/${id}`, data),
   delete: (id: number) => api.delete(`/slots/${id}`),
+}
+
+export const requestApi = {
+  create: (data: Record<string, unknown>) => api.post<Request>('/requests/', data),
+  list: (userId: number, params?: Record<string, unknown>) => api.get<Paginated<Request>>(`/requests/user/${userId}/`, { params }),
+  get: (id: number) => api.get<Request>(`/requests/${id}`),
+  update: (id: number, data: Record<string, unknown>) => api.put<Request>(`/requests/${id}`, data),
+  remove: (id: number) => api.delete(`/requests/${id}`),
 }
 
 export const userApi = {

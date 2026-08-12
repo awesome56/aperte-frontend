@@ -50,6 +50,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/requests',
+      name: 'my-requests',
+      component: () => import('../views/MyRequestsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/create-request',
+      name: 'create-request',
+      component: () => import('../views/CreateRequestView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/add-listing',
       name: 'add-listing',
       component: () => import('../views/AddListingView.vue'),
