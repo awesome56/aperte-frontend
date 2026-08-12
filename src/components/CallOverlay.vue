@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { callState, callPhase, localStream, remoteStream, muted, videoEnabled, callError, callManager } from '@/calls/callManager'
+import { callState, callPhase, localStream, remoteStream, muted, videoEnabled, callError, calleeOnline, callManager } from '@/calls/callManager'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -32,9 +32,17 @@ const initials = computed(() => {
 })
 
 const phaseLabel = computed(() => {
-  if (callPhase.value === 'outgoing') return 'Calling…'
+  if (callPhase.value === 'outgoing') {
+    return calleeOnline.value ? 'Ringing…' : 'Calling…'
+  }
   if (callPhase.value === 'incoming') return 'Incoming call'
   return 'In call'
+})
+
+const callKindLabel = computed(() => {
+  const kind = callState.value?.call_type === 'video' ? 'video call' : 'voice call'
+  if (callPhase.value === 'incoming') return `Incoming ${kind}`
+  return kind
 })
 
 function fmtElapsed() {
@@ -64,7 +72,26 @@ watch(
 
 <template>
   <Teleport to="body">
-    <div v-if="callPhase !== 'idle'" class="call-overlay">
+    <!-- Incoming call: top-right dismissible notification (any page) -->
+    <div v-if="callPhase === 'incoming'" class="call-notif">
+      <div class="notif-avatar">{{ initials }}</div>
+      <div class="notif-info">
+        <strong>{{ other?.full_name || other?.username || '…' }}</strong>
+        <span>{{ callKindLabel }}</span>
+      </div>
+      <div class="notif-actions">
+        <button class="notif-btn decline" title="Decline" @click="callManager.declineCall()">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+        </button>
+        <button class="notif-btn accept" title="Accept" @click="callManager.acceptCall()">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+        </button>
+      </div>
+      <button class="notif-dismiss" title="Dismiss" @click="callManager.declineCall()">×</button>
+    </div>
+
+    <!-- Outgoing / active call: center overlay -->
+    <div v-else-if="callPhase !== 'idle'" class="call-overlay">
       <div class="card" :class="{ video: callState?.call_type === 'video' && callPhase === 'active' }">
         <!-- remote video -->
         <video
@@ -76,10 +103,7 @@ watch(
         ></video>
         <div v-else class="avatar-big">
           {{ initials }}
-          <span v-if="callPhase === 'incoming'" class="pulse-ring"></span>
-        </div>
-
-        <!-- local video PiP -->
+        </div>        <!-- local video PiP -->
         <video
           v-if="callState?.call_type === 'video' && callPhase === 'active'"
           ref="localVideoEl"
@@ -99,16 +123,7 @@ watch(
 
         <!-- actions -->
         <div class="actions">
-          <template v-if="callPhase === 'incoming'">
-            <button class="btn-act decline" title="Decline" @click="callManager.declineCall()">
-              <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-            </button>
-            <button class="btn-act accept" title="Accept" @click="callManager.acceptCall()">
-              <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-            </button>
-          </template>
-
-          <template v-else-if="callPhase === 'outgoing'">
+          <template v-if="callPhase === 'outgoing'">
             <button class="btn-act decline" title="Cancel" @click="callManager.endCall()">
               <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
             </button>
@@ -133,6 +148,112 @@ watch(
 </template>
 
 <style scoped>
+/* ---- incoming call notification (top right) ---- */
+.call-notif {
+  position: fixed;
+  top: 90px;
+  right: 20px;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  padding: 14px 16px;
+  min-width: 300px;
+  max-width: min(92vw, 380px);
+  animation: slide-in 0.25s ease;
+  border: 1px solid var(--color-border, #eee);
+}
+
+@keyframes slide-in {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.notif-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--clr-blue2, #0a84ff);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.notif-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-info strong {
+  display: block;
+  color: var(--color-dark, #1c1c1c);
+  font-size: 0.98rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-info span {
+  color: var(--color-muted, #666);
+  font-size: 0.82rem;
+}
+
+.notif-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.notif-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.notif-btn:hover {
+  transform: scale(1.08);
+}
+
+.notif-btn.accept {
+  background: #2ecc71;
+  color: #fff;
+}
+
+.notif-btn.decline {
+  background: #ff453a;
+  color: #fff;
+}
+
+.notif-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: none;
+  color: var(--color-muted, #999);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.notif-dismiss:hover {
+  background: #f0f0f2;
+  color: #333;
+}
+
+/* ---- center overlay (outgoing / active) ---- */
 .call-overlay {
   position: fixed;
   inset: 0;

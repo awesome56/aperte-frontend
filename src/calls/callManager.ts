@@ -17,9 +17,12 @@ export const remoteStream = ref<MediaStream | null>(null)
 export const muted = ref(false)
 export const videoEnabled = ref(true)
 export const callError = ref('')
+// whether the callee is online (drives Calling… vs Ringing on the caller side)
+export const calleeOnline = ref(false)
 
 const STUN = { urls: 'stun:stun.l.google.com:19302' }
-const RING_TIMEOUT_MS = 60000
+const CALLING_TIMEOUT_MS = 30000
+const RINGING_TIMEOUT_MS = 45000
 
 let pc: RTCPeerConnection | null = null
 let signalAfter = 0
@@ -27,7 +30,6 @@ let signalTimer: number | null = null
 let ringTimer: number | null = null
 let pendingIce: RTCIceCandidateInit[] = []
 let audioCtx: AudioContext | null = null
-let ringNodes: { osc: OscillatorNode; gain: GainNode } | null = null
 let stopFns: (() => void)[] = []
 
 function me(): number | null {
@@ -42,23 +44,28 @@ function otherUser(call: Call): CallUser | null {
 }
 
 // ---------- ringtone (WebAudio, no asset files) ----------
+// Generic phone-style ring: 0.4s tone on, 0.3s silence, repeated.
 
 function startRing() {
   try {
-    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const osc = audioCtx.createOscillator()
-    const gain = audioCtx.createGain()
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    audioCtx = ctx
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
     osc.type = 'sine'
-    osc.frequency.value = 520
-    gain.gain.value = 0.08
+    osc.frequency.value = 425
+    gain.gain.value = 0
     osc.connect(gain)
-    gain.connect(audioCtx.destination)
+    gain.connect(ctx.destination)
     osc.start()
-    // trill: alternate 520/420 Hz every 400ms
-    ringNodes = { osc, gain }
-    ;(audioCtx as any)._trill = setInterval(() => {
-      osc.frequency.value = osc.frequency.value === 520 ? 420 : 520
-    }, 400)
+    ;(ctx as any)._osc = osc
+    const RING_ON = 400
+    const RING_OFF = 300
+    let ringing = false
+    ;(ctx as any)._ring = setInterval(() => {
+      ringing = !ringing
+      gain.gain.setTargetAtTime(ringing ? 0.09 : 0, ctx.currentTime, 0.02)
+    }, ringing ? RING_OFF : RING_ON)
   } catch {
     // audio not available — silent ring
   }
@@ -67,15 +74,14 @@ function startRing() {
 function stopRing() {
   if (audioCtx) {
     try {
-      clearInterval((audioCtx as any)._trill)
-      ringNodes?.osc.stop()
+      clearInterval((audioCtx as any)._ring)
+      ;(audioCtx as any)._osc?.stop()
     } catch {
       // already stopped
     }
     audioCtx.close().catch(() => {})
   }
   audioCtx = null
-  ringNodes = null
 }
 
 // ---------- WebRTC ----------
@@ -177,6 +183,26 @@ async function pollSignals(callId: string) {
 
 // ---------- actions ----------
 
+function armOutgoingTimer(callId: string) {
+  if (ringTimer != null) {
+    window.clearTimeout(ringTimer)
+    ringTimer = null
+  }
+  // Calling (callee offline) = 30s, Ringing (callee online) = 45s
+  const ms = calleeOnline.value ? RINGING_TIMEOUT_MS : CALLING_TIMEOUT_MS
+  ringTimer = window.setTimeout(() => {
+    callApi.end(callId, 'missed').catch(() => {})
+    resetUi()
+  }, ms)
+}
+
+function clearRingTimer() {
+  if (ringTimer != null) {
+    window.clearTimeout(ringTimer)
+    ringTimer = null
+  }
+}
+
 async function startCall(userId: number, callType: 'audio' | 'video') {
   if (callPhase.value !== 'idle') return
   callError.value = ''
@@ -184,13 +210,10 @@ async function startCall(userId: number, callType: 'audio' | 'video') {
   try {
     const res = await callApi.create(userId, callType)
     callState.value = res.data
+    calleeOnline.value = Boolean(res.data.callee?.online)
     callPhase.value = 'outgoing'
     startRing()
-    ringTimer = window.setTimeout(() => {
-      // no answer
-      callApi.end(res.data.id, 'missed').catch(() => {})
-      resetUi()
-    }, RING_TIMEOUT_MS)
+    armOutgoingTimer(res.data.id)
     import('@/analytics/tracker').then((m) => m.default.trackEvent('call_start', 'conversion', { call_type: callType }))
   } catch (e: any) {
     callError.value = e.response?.data?.error || 'Call could not be started.'
@@ -236,12 +259,10 @@ async function endCall() {
 }
 
 function resetUi() {
-  if (ringTimer != null) {
-    window.clearTimeout(ringTimer)
-    ringTimer = null
-  }
+  clearRingTimer()
   callState.value = null
   callPhase.value = 'idle'
+  calleeOnline.value = false
   muted.value = false
   videoEnabled.value = true
 }
@@ -271,13 +292,9 @@ function wireStream() {
     cleanupPeer()
     callState.value = call
     callPhase.value = call.caller?.id === uid ? 'outgoing' : 'incoming'
+    calleeOnline.value = Boolean(call.callee?.online)
     startRing()
-    if (call.caller?.id === uid) {
-      ringTimer = window.setTimeout(() => {
-        callApi.end(call.id, 'missed').catch(() => {})
-        resetUi()
-      }, RING_TIMEOUT_MS)
-    }
+    if (call.caller?.id === uid) armOutgoingTimer(call.id)
   })
 
   const offUpdate = onStreamEvent('call_update', (p: any) => {
@@ -290,6 +307,7 @@ function wireStream() {
     if (call.status === 'active' && callPhase.value === 'outgoing') {
       // callee accepted — become the caller side of the peer connection
       stopRing()
+      clearRingTimer()
       callState.value = call
       getUserMedia(call.call_type).then((stream) => {
         if (!stream) return
@@ -299,12 +317,25 @@ function wireStream() {
       })
     } else if (['ended', 'declined', 'missed'].includes(call.status)) {
       stopRing()
+      clearRingTimer()
       cleanupPeer()
       resetUi()
     }
   })
 
-  stopFns.push(offCall, offUpdate)
+  const offPresence = onStreamEvent('presence', (p: any) => {
+    const call = callState.value
+    if (!call || callPhase.value !== 'outgoing') return
+    if (call.callee?.id !== p.user_id) return
+    const wasOnline = calleeOnline.value
+    calleeOnline.value = Boolean(p.online)
+    if (calleeOnline.value && !wasOnline) {
+      // callee just came online: switch from Calling… to Ringing, 45s window
+      armOutgoingTimer(call.id)
+    }
+  })
+
+  stopFns.push(offCall, offUpdate, offPresence)
 }
 
 wireStream()

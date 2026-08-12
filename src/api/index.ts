@@ -294,6 +294,8 @@ export interface CallUser {
   username: string
   full_name: string
   profile_picture: string
+  online: boolean
+  last_seen: string | null
 }
 
 export interface Call {
