@@ -45,6 +45,7 @@ export interface Property {
   negotiable: number
   available: number
   approved: number
+  disabled?: number
   views?: number
   image_count?: number
   video_count?: number

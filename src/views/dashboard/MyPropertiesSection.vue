@@ -15,6 +15,24 @@ function manageProperty(id: number) {
   router.push({ name: 'property-manage', params: { id } })
 }
 
+const toggling = ref<number | null>(null)
+const msg = ref('')
+
+async function toggleDisabled(p: Property) {
+  toggling.value = p.id
+  msg.value = ''
+  err.value = ''
+  try {
+    await propertyApi.update(p.id, { disabled: p.disabled ? 0 : 1 })
+    p.disabled = p.disabled ? 0 : 1
+    msg.value = p.disabled ? 'Listing hidden from the site.' : 'Listing is now visible on the site.'
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to update listing.'
+  } finally {
+    toggling.value = null
+  }
+}
+
 onMounted(async () => {
   if (!auth.user?.id) {
     await auth.fetchMe()
@@ -38,8 +56,11 @@ onMounted(async () => {
   <div>
     <div class="sec-head">
       <h1 class="page-title">My Properties</h1>
-      <RouterLink to="/add-listing" class="btn btn-primary">+ Add Listing</RouterLink>
+      <RouterLink to="/add-listing" class="btn btn-primary add-btn">+ Add Listing</RouterLink>
     </div>
+
+    <p v-if="msg" class="success-text banner">{{ msg }}</p>
+    <p v-if="err" class="error-text banner">{{ err }}</p>
 
     <div v-if="loading" class="loading">Loading…</div>
     <div v-else-if="err" class="loading">{{ err }}</div>
@@ -48,13 +69,16 @@ onMounted(async () => {
       <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
     </div>
     <div v-else class="prop-list">
-      <div v-for="p in properties" :key="p.id" class="prop-card">
+      <div v-for="p in properties" :key="p.id" class="prop-card" :class="{ hidden: p.disabled }">
         <img v-if="p.dp || p.images?.[0]" :src="p.dp || p.images?.[0]?.image_url" alt="" class="prop-thumb" />
         <div class="prop-ph" v-else></div>
         <div class="prop-body">
           <div class="prop-title-row">
             <strong class="prop-title">{{ p.title }}</strong>
-            <span class="status-badge" :class="p.approved ? 'ok' : 'no'">{{ p.approved ? 'Approved' : 'Pending' }}</span>
+            <div class="badges">
+              <span v-if="p.disabled" class="status-badge hidden-badge">Hidden</span>
+              <span class="status-badge" :class="p.approved ? 'ok' : 'no'">{{ p.approved ? 'Approved' : 'Pending' }}</span>
+            </div>
           </div>
           <span class="prop-meta">{{ p.city }}, {{ p.state }} · {{ formatPrice(p.price, p.currency) }} · {{ p.category }}</span>
           <div class="prop-stats">
@@ -65,6 +89,9 @@ onMounted(async () => {
           <div class="prop-actions">
             <button class="btn btn-primary btn-sm" @click="manageProperty(p.id)">Manage Property</button>
             <RouterLink :to="`/properties/${p.id}`" class="btn btn-outline btn-sm">View</RouterLink>
+            <button class="btn btn-outline btn-sm" :disabled="toggling === p.id" @click="toggleDisabled(p)">
+              {{ toggling === p.id ? '…' : p.disabled ? 'Enable Listing' : 'Disable Listing' }}
+            </button>
           </div>
         </div>
       </div>
@@ -85,6 +112,39 @@ onMounted(async () => {
 .page-title {
   font-size: 1.4rem;
   font-weight: 600;
+}
+
+.banner {
+  margin-bottom: 12px;
+}
+
+/* average-size buttons */
+.add-btn,
+.prop-actions .btn,
+.empty .btn {
+  padding: 8px 16px;
+  font-size: 0.88rem;
+}
+
+.prop-actions .btn-sm,
+.prop-actions .btn {
+  padding: 7px 14px;
+  font-size: 0.84rem;
+}
+
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.hidden-badge {
+  background: #eceef1;
+  color: #6b7280;
+}
+
+.prop-card.hidden {
+  opacity: 0.75;
 }
 
 .loading,
