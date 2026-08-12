@@ -15,7 +15,7 @@ const items = computed<BottomNavItem[]>(() => (auth.isAuthenticated ? USER_BOTTO
 function isActive(to?: string) {
   if (!to) return false
   if (to === '/') return route.path === '/'
-  return route.path.startsWith(to.split('?')[0])
+  return route.path.startsWith(to.split('?')[0] ?? '')
 }
 </script>
 
