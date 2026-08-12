@@ -74,6 +74,11 @@ function goCreateRequest() {
   router.push('/create-request')
 }
 
+function goFavorites() {
+  accountOpen.value = false
+  router.push('/favorites')
+}
+
 function logout() {
   menuOpen.value = false
   accountOpen.value = false
@@ -123,9 +128,9 @@ watch(() => router.currentRoute.value.fullPath, () => {
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
         </template>
         <template v-else>
-          <!-- Messages icon with unread badge -->
-          <RouterLink to="/messages" class="icon-link msg-icon" :title="'Messages'">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
+          <!-- Notifications icon with unread badge -->
+          <RouterLink to="/messages" class="icon-link msg-icon" :title="'Notifications'">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
             <span v-if="unread" class="unread-dot">{{ unread > 99 ? '99+' : unread }}</span>
           </RouterLink>
 
@@ -141,6 +146,7 @@ watch(() => router.currentRoute.value.fullPath, () => {
               </div>
               <button class="account-item" role="menuitem" @click="goDashboard">Dashboard</button>
               <button class="account-item" role="menuitem" @click="goCreateRequest">Create Request</button>
+              <button class="account-item" role="menuitem" @click="goFavorites">Favorites</button>
               <div class="account-sep"></div>
               <button class="account-item logout" role="menuitem" @click="logout">Logout</button>
             </div>
