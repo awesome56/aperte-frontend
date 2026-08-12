@@ -52,6 +52,9 @@ function fmt(n: number | null | undefined) {
 
 async function loadAll() {
   if (!auth.user) return
+  // ensure we have a full user profile (id) before fetching user-scoped data
+  if (!auth.user.id) await auth.fetchMe()
+  if (!auth.user?.id) return
   loading.value = true
   try {
     const [p, b] = await Promise.all([
