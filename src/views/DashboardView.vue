@@ -383,6 +383,11 @@ function logout() {
   flex-wrap: wrap;
 }
 
+.quick-actions .btn {
+  padding: 9px 20px;
+  font-size: 0.9rem;
+}
+
 /* mobile */
 .c-topbar {
   display: none;
@@ -470,9 +475,6 @@ function logout() {
   .quick-actions .btn {
     flex: 1;
     text-align: center;
-  }
-  .activity-grid {
-    grid-template-columns: 1fr 1fr;
   }
   .c-main {
     padding: 18px 14px;
