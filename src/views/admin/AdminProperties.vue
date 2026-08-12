@@ -111,7 +111,7 @@ onMounted(load)
       </thead>
       <tbody>
         <tr v-for="p in props" :key="p.id">
-          <td>
+          <td data-label="Property">
             <div class="p-cell">
               <img v-if="p.dp" :src="p.dp" alt="" class="thumb" />
               <div class="no-thumb" v-else></div>
@@ -121,15 +121,15 @@ onMounted(load)
               </div>
             </div>
           </td>
-          <td>{{ p.category }}</td>
-          <td>{{ formatPrice(p.price, p.currency) }}</td>
-          <td>{{ p.username || '—' }}</td>
-          <td>
+          <td data-label="Category">{{ p.category }}</td>
+          <td data-label="Price">{{ formatPrice(p.price, p.currency) }}</td>
+          <td data-label="Owner">{{ p.username || '—' }}</td>
+          <td data-label="Status">
             <span class="pill" :class="p.approved ? 'ok' : 'no'">
               {{ p.approved ? 'Approved' : 'Pending' }}
             </span>
           </td>
-          <td class="actions">
+          <td class="actions" data-label="Actions">
             <button v-if="!p.approved" class="btn small" @click="approve(p)">Approve</button>
             <button v-else class="btn small outline" @click="reject(p)">Reject</button>
             <button class="btn small danger" @click="remove(p)">Delete</button>

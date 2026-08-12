@@ -935,6 +935,8 @@ onMounted(async () => {
   border-radius: 16px;
   width: min(92vw, 440px);
   padding: 26px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal h3 {
@@ -1100,6 +1102,16 @@ onMounted(async () => {
   }
   .gallery {
     padding: 0;
+  }
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    width: 100%;
+    border-radius: 18px 18px 0 0;
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+    max-height: 88vh;
   }
 }
 </style>

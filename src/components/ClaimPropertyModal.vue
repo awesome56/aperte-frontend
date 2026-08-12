@@ -383,6 +383,19 @@ function signIn() {
   cursor: not-allowed;
 }
 
+@media (max-width: 600px) {
+  .claim-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .claim-modal {
+    width: 100%;
+    border-radius: 18px 18px 0 0;
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+    max-height: 88vh;
+  }
+}
+
 .method-card {
   display: flex;
   align-items: center;

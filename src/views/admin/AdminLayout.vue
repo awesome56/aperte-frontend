@@ -1,19 +1,35 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { ADMIN_NAV } from '@/config/navigation'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const drawerOpen = ref(false)
+
+// visible admin items (role/permission-aware)
+const navItems = ADMIN_NAV.filter((item) => {
+  if (item.adminOnly) return auth.isAdmin
+  if (item.label === 'Roles & Permissions') return auth.isAdmin
+  return true
+})
 
 function logout() {
   auth.logout()
   router.push('/')
 }
+
+watch(() => route.fullPath, () => {
+  drawerOpen.value = false
+})
 </script>
 
 <template>
   <div class="admin-layout">
-    <!-- Sidebar (from Figma: 212px, "ByeWind" logo + nav groups) -->
+    <!-- Desktop sidebar -->
     <aside class="sidebar">
       <div class="logo">
         <div class="logo-mark">A</div>
@@ -25,22 +41,11 @@ function logout() {
         <RouterLink to="/admin" class="nav-item" active-class="active" exact-active-class="active">
           <span class="dot" style="background:#0a84ff"></span> Overview
         </RouterLink>
-        <RouterLink to="/admin/analytics" class="nav-item" active-class="active">
-          <span class="dot" style="background:#ff9f0a"></span> Analytics
-        </RouterLink>
 
         <p class="nav-label">Management</p>
-        <RouterLink to="/admin/users" class="nav-item" active-class="active">
-          <span class="dot" style="background:#71dd8c"></span> Users
-        </RouterLink>
-        <RouterLink to="/admin/properties" class="nav-item" active-class="active">
-          <span class="dot" style="background:#b899eb"></span> Properties
-        </RouterLink>
-        <RouterLink v-if="auth.isAdmin || auth.isStaff" to="/admin/claims" class="nav-item" active-class="active">
-          <span class="dot" style="background:#64d2ff"></span> Claims
-        </RouterLink>
-        <RouterLink v-if="auth.isAdmin" to="/admin/roles" class="nav-item" active-class="active">
-          <span class="dot" style="background:#adadfb"></span> Roles & Permissions
+        <RouterLink v-for="item in navItems.filter((i) => i.to !== '/admin')" :key="item.to" :to="item.to" class="nav-item" active-class="active">
+          <span class="dot" :style="{ background: item.label === 'Analytics' ? '#ff9f0a' : item.label === 'Users' ? '#71dd8c' : item.label === 'Properties' ? '#b899eb' : item.label === 'Claims' ? '#64d2ff' : '#adadfb' }"></span>
+          {{ item.label }}
         </RouterLink>
       </nav>
 
@@ -54,9 +59,37 @@ function logout() {
       </div>
     </aside>
 
+    <!-- Mobile header + drawer -->
+    <div class="mobile-topbar">
+      <button class="mobile-hamburger" :class="{ open: drawerOpen }" aria-label="Menu" @click="drawerOpen = !drawerOpen">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="mobile-logo"><span class="logo-mark">A</span><strong>Aperte Admin</strong></div>
+      <RouterLink to="/" class="mobile-site">Site</RouterLink>
+    </div>
+
+    <Teleport to="body">
+      <div v-if="drawerOpen" class="drawer-backdrop" @click="drawerOpen = false"></div>
+      <div v-if="drawerOpen" class="drawer">
+        <nav class="drawer-nav">
+          <RouterLink to="/admin" class="drawer-item" exact-active-class="active" @click="drawerOpen = false">Overview</RouterLink>
+          <RouterLink
+            v-for="item in navItems.filter((i) => i.to !== '/admin')"
+            :key="item.to"
+            :to="item.to"
+            class="drawer-item"
+            active-class="active"
+            @click="drawerOpen = false"
+          >{{ item.label }}</RouterLink>
+          <RouterLink to="/" class="drawer-item" @click="drawerOpen = false">View Site</RouterLink>
+          <button class="drawer-item logout" @click="logout">Logout</button>
+        </nav>
+      </div>
+    </Teleport>
+
     <!-- Main -->
     <div class="main">
-      <!-- Header (from Figma: breadcrumb + search) -->
+      <!-- Header -->
       <header class="header">
         <div class="breadcrumb">
           <span>Dashboards</span>
@@ -64,10 +97,6 @@ function logout() {
           <span class="current">Admin</span>
         </div>
         <div class="header-right">
-          <div class="search">
-            <span>⌕</span>
-            <input type="text" placeholder="Search" />
-          </div>
           <div class="avatar" :title="auth.user?.full_name">{{ auth.user?.full_name?.[0]?.toUpperCase() }}</div>
         </div>
       </header>
@@ -151,6 +180,7 @@ function logout() {
   background: none;
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
 }
 
 .nav-item:hover {
@@ -210,24 +240,6 @@ function logout() {
   gap: 20px;
 }
 
-.search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #e5e5e7;
-  border-radius: 8px;
-  padding: 7px 12px;
-  color: #9aa0a6;
-}
-
-.search input {
-  border: none;
-  outline: none;
-  font-size: 0.9rem;
-  min-width: 160px;
-  background: none;
-}
-
 .avatar {
   width: 34px;
   height: 34px;
@@ -241,5 +253,130 @@ function logout() {
 
 .content {
   padding: 28px;
+}
+
+/* Mobile header + drawer */
+.mobile-topbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.mobile-hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.mobile-hamburger span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: #1c1c1c;
+  border-radius: 2px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.mobile-hamburger.open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.mobile-hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.mobile-hamburger.open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.mobile-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.mobile-site {
+  color: #0a84ff;
+  font-size: 0.9rem;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(10, 12, 20, 0.4);
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  z-index: 901;
+  background: #fff;
+  box-shadow: 8px 0 30px rgba(0, 0, 0, 0.15);
+  padding: 20px 12px;
+  overflow-y: auto;
+}
+
+.drawer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drawer-item {
+  display: block;
+  width: 100%;
+  padding: 14px 12px;
+  border-radius: 8px;
+  color: #444;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drawer-item:hover {
+  background: #f5f5f7;
+}
+
+.drawer-item.active {
+  background: #eef4ff;
+  color: #0a84ff;
+}
+
+.drawer-item.logout {
+  color: #d0342c;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    display: none;
+  }
+  .main {
+    margin-left: 0;
+  }
+  .mobile-topbar {
+    display: flex;
+  }
 }
 </style>

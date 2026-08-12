@@ -103,7 +103,7 @@ onMounted(() => {
       </thead>
       <tbody>
         <tr v-for="u in users" :key="u.id">
-          <td>
+          <td data-label="User">
             <div class="user-cell">
               <div class="u-avatar">{{ u.full_name?.[0]?.toUpperCase() }}</div>
               <div>
@@ -112,13 +112,13 @@ onMounted(() => {
               </div>
             </div>
           </td>
-          <td>{{ u.email }}</td>
-          <td>
+          <td data-label="Email">{{ u.email }}</td>
+          <td data-label="Verified">
             <span class="pill" :class="u.email_verified ? 'ok' : 'no'">
               {{ u.email_verified ? 'Verified' : 'Unverified' }}
             </span>
           </td>
-          <td>
+          <td data-label="Role">
             <select
               class="role-select"
               :value="u.role"
@@ -127,8 +127,8 @@ onMounted(() => {
               <option v-for="r in roles" :key="r.id" :value="r.name">{{ r.name }}</option>
             </select>
           </td>
-          <td>{{ fmtDate(u.created_at) }}</td>
-          <td class="actions">
+          <td data-label="Joined">{{ fmtDate(u.created_at) }}</td>
+          <td class="actions" data-label="Actions">
             <button v-if="!u.email_verified" class="btn small" @click="toggleVerify(u)">Verify</button>
             <button v-else class="btn small outline" @click="toggleVerify(u)">Unverify</button>
             <button class="btn small danger" @click="removeUser(u)">Delete</button>

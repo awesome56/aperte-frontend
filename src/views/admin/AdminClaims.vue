@@ -77,7 +77,7 @@ onMounted(load)
       </thead>
       <tbody>
         <tr v-for="c in claims" :key="c.id">
-          <td>
+          <td data-label="Property">
             <div class="prop-cell">
               <img v-if="c.property.dp" :src="c.property.dp" class="thumb" alt="" />
               <div>
@@ -86,15 +86,15 @@ onMounted(load)
               </div>
             </div>
           </td>
-          <td>
+          <td data-label="Claimant">
             <strong>{{ c.user.full_name || c.user.username }}</strong>
             <span class="sub">{{ c.user.email }}</span>
           </td>
-          <td>{{ fmtDate(c.created_at) }}</td>
-          <td>
+          <td data-label="Requested">{{ fmtDate(c.created_at) }}</td>
+          <td data-label="Status">
             <span class="pill" :class="c.status">{{ c.status }}</span>
           </td>
-          <td>
+          <td data-label="Document">
             <a
               v-if="c.document_url"
               :href="c.document_url"
@@ -107,7 +107,7 @@ onMounted(load)
             </a>
             <span v-else class="muted">—</span>
           </td>
-          <td class="actions">
+          <td class="actions" data-label="Actions">
             <template v-if="c.status === 'pending'">
               <button class="btn small" @click="decide(c, true)">Approve</button>
               <button class="btn small danger" @click="decide(c, false)">Reject</button>
