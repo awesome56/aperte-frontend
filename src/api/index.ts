@@ -203,6 +203,20 @@ export const propertyApi = {
   deleteImage: (id: number) => api.delete(`/properties/images/${id}`),
   deleteVideo: (id: number) => api.delete(`/properties/videos/${id}`),
   setDp: (id: number) => api.put(`/properties/images/${id}/dp`),
+  myAnalytics: () =>
+    api.get<{
+      totals: {
+        properties: number
+        views: number
+        favorites: number
+        requests: number
+        request_responses: number
+        messages_received: number
+        messages_sent: number
+      }
+      properties: { id: number; title: string; dp: string; views: number; favorites: number; bookings: Record<string, number>; created_at: string }[]
+      requests: { id: number; title: string; responses: number; created_at: string }[]
+    }>('/properties/analytics/mine'),
   claim: (id: number) =>
     api.post<{ message: string; claim: { id: number; status: string }; verification_email?: string }>(`/properties/${id}/claim`, { method: 'email' }),
   claimWithDocument: (id: number, file: File) => {
