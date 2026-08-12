@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { messageApi, type Conversation, type Message } from '@/api'
+import { messageApi, formatPrice, type Conversation, type Message } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { unreadCount, on as onStreamEvent } from '@/messaging/stream'
 // calls temporarily disabled — see callManager.ts
@@ -311,6 +311,14 @@ function initialsOf(name: string) {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 }
 
+// the property/request this conversation is about (from quoted messages)
+const threadContext = computed(() => {
+  const withCtx = messages.value.find((m) => m.property || m.request)
+  if (withCtx?.property) return { type: 'property' as const, data: withCtx.property }
+  if (withCtx?.request) return { type: 'request' as const, data: withCtx.request }
+  return null
+})
+
 function openConvo(c: Conversation) {
   quotePropertyId.value = null
   quoteRequestId.value = null
@@ -484,12 +492,28 @@ onUnmounted(() => {
             </div>
           </header>
 
-          <div v-if="quotePropertyId || quoteRequestId" class="context-banner">
-            Regarding:
-            <RouterLink v-if="quotePropertyId" :to="`/properties/${quotePropertyId}`" class="context-link">
-              Property #{{ quotePropertyId }}
-            </RouterLink>
-            <RouterLink v-else :to="`/requests`" class="context-link">Request #{{ quoteRequestId }}</RouterLink>
+          <!-- property/request context card -->
+          <div v-if="threadContext" class="context-card">
+            <span class="context-label">You're discussing</span>
+            <template v-if="threadContext.type === 'property'">
+              <div class="context-main">
+                <img v-if="threadContext.data.dp" :src="threadContext.data.dp" alt="" class="context-thumb" />
+                <div class="context-info">
+                  <strong>{{ threadContext.data.title }}</strong>
+                  <span>{{ threadContext.data.city }}, {{ threadContext.data.state }} · {{ threadContext.data.property_type }}</span>
+                  <span class="context-price">{{ formatPrice(threadContext.data.price, threadContext.data.currency) }}</span>
+                </div>
+                <RouterLink :to="`/properties/${threadContext.data.id}`" class="context-link">View →</RouterLink>
+              </div>
+            </template>
+            <template v-else>
+              <div class="context-main">
+                <div class="context-info">
+                  <strong>{{ threadContext.data.title }}</strong>
+                  <span>{{ threadContext.data.property_type }} · {{ threadContext.data.city }}, {{ threadContext.data.state }}</span>
+                </div>
+              </div>
+            </template>
           </div>
 
           <div ref="chatRef" class="chat-body">
@@ -806,6 +830,68 @@ onUnmounted(() => {
   font-size: 0.85rem;
   padding: 8px 18px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.context-card {
+  background: #f7f9fc;
+  border-bottom: 1px solid var(--color-border, #e5e8ee);
+  padding: 10px 18px;
+}
+
+.context-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-muted, #888);
+  margin-bottom: 6px;
+}
+
+.context-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.context-thumb {
+  width: 52px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.context-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.context-info strong {
+  color: var(--color-dark, #222);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-info span {
+  color: var(--color-muted, #777);
+  font-size: 0.78rem;
+}
+
+.context-price {
+  color: var(--color-primary, #0a84ff) !important;
+  font-weight: 700;
+}
+
+.context-link {
+  color: var(--color-primary, #0a84ff);
+  font-size: 0.82rem;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .context-link {

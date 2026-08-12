@@ -44,6 +44,10 @@ const verified = computed(() => Boolean(props.property.approved))
         </span>
         <span v-if="imageCount" class="count-badge">{{ imageCount }}</span>
       </div>
+
+      <div v-if="property.available === 0" class="unavailable">
+        <span>Unavailable</span>
+      </div>
     </RouterLink>
 
     <div class="body">
@@ -194,6 +198,22 @@ const verified = computed(() => Boolean(props.property.approved))
 .count-badge.video {
   background: rgba(255, 255, 255, 0.94);
   color: #0a84ff;
+}
+
+.unavailable {
+  position: absolute;
+  top: 12px;
+  right: 56px;
+  left: auto;
+}
+
+.unavailable span {
+  background: rgba(10, 12, 20, 0.72);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .body {

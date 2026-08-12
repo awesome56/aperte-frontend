@@ -258,12 +258,36 @@ function capturePerformance(path: string) {
   }, true)
 }
 
+// ---- scroll depth (25/50/75/100%) ----
+
+let scrollReported = new Set<number>()
+
+function trackScroll() {
+  const doc = document.documentElement
+  const total = doc.scrollHeight - window.innerHeight
+  if (total <= 0) return
+  const pct = Math.round((window.scrollY / total) * 100)
+  for (const threshold of [25, 50, 75, 100]) {
+    if (pct >= threshold && !scrollReported.has(threshold)) {
+      scrollReported.add(threshold)
+      trackEvent('scroll_depth', 'engagement', { percent: threshold })
+    }
+  }
+}
+
+// reset on full page loads
+window.addEventListener('load', () => {
+  scrollReported = new Set()
+  window.addEventListener('scroll', trackScroll, { passive: true })
+})
+
 // ---- error events (after full load) ----
 
 export const tracker = {
   pageview,
   trackEvent,
   trackError,
+  trackScroll,
   flush,
 }
 

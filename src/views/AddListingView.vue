@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { propertyApi, userApi, categoryLabels, purposeLabels } from '@/api'
+import { propertyApi, categoryLabels, purposeLabels } from '@/api'
 
 const router = useRouter()
 
@@ -30,6 +30,27 @@ const images = ref<File[]>([])
 const videos = ref<File[]>([])
 const error = ref('')
 const loading = ref(false)
+
+const step = ref(1)
+const STEPS = ['Basics', 'Location', 'Photos', 'Details', 'Pricing', 'Publish']
+const stepValid = computed(() => {
+  if (step.value === 1) return Boolean(form.title.trim() && form.description.trim())
+  if (step.value === 2) return Boolean(form.location.trim() && form.city.trim() && form.state.trim() && form.country.trim())
+  if (step.value === 3) return true
+  if (step.value === 4) return true
+  if (step.value === 5) return form.price > 0
+  return true
+})
+
+function next() {
+  error.value = ''
+  if (step.value < 6) step.value++
+}
+
+function prev() {
+  error.value = ''
+  if (step.value > 1) step.value--
+}
 
 const attrHints: Record<string, string[]> = {
   property: ['furnished', 'furnishing_status', 'title_document', 'number_of_floors', 'road_access'],
@@ -104,6 +125,9 @@ async function submit() {
     if (images.value.length) await propertyApi.uploadImages(id, images.value)
     if (videos.value.length) await propertyApi.uploadVideos(id, videos.value)
 
+    import('@/analytics/tracker').then((m) =>
+      m.default.trackEvent('property_listed', 'conversion', { category: form.category, purpose: form.purpose }),
+    )
     router.push(`/properties/${id}`)
   } catch (e: any) {
     error.value = e.response?.data?.error || e.message || 'Failed to create listing.'
@@ -116,132 +140,171 @@ async function submit() {
 <template>
   <div class="add">
     <div class="container">
-      <h1>Add a Listing</h1>
-      <p class="sub">Fill in the details below. Fields marked with attribute hints are optional.</p>
+      <h1>List Your Property</h1>
+      <p class="sub">Reach thousands of property seekers across Nigeria. Steps marked * are required.</p>
 
-      <form class="card" @submit.prevent="submit">
-        <div class="row">
-          <div class="form-group">
-            <label>Title</label>
-            <input v-model="form.title" class="form-control" required />
-          </div>
-          <div class="form-group">
-            <label>Category</label>
-            <select v-model="form.category" class="form-control">
-              <option v-for="(label, key) in categoryLabels" :key="key" :value="key">{{ label }}</option>
-            </select>
-          </div>
-        </div>
+      <!-- progress -->
+      <ol class="steps" aria-label="Listing progress">
+        <li v-for="(s, i) in STEPS" :key="s" :class="{ done: i + 1 < step, active: i + 1 === step }">
+          <span class="step-dot">{{ i + 1 }}</span>
+          <span class="step-name">{{ s }}</span>
+        </li>
+      </ol>
 
-        <div class="row">
+      <form class="card" @submit.prevent="step === 6 ? submit() : next()">
+        <!-- 1. BASICS -->
+        <template v-if="step === 1">
           <div class="form-group">
-            <label>Property Type</label>
-            <select v-model="form.property_type" class="form-control">
-              <option v-for="t in propertyTypes[form.category] || ['other']" :key="t" :value="t">{{ t }}</option>
-            </select>
+            <label>Title *</label>
+            <input v-model="form.title" class="form-control" placeholder="e.g. Luxury 3-bedroom apartment in Lekki" required />
+          </div>
+          <div class="row">
+            <div class="form-group">
+              <label>Category *</label>
+              <select v-model="form.category" class="form-control">
+                <option v-for="(label, key) in categoryLabels" :key="key" :value="key">{{ label }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Property Type *</label>
+              <select v-model="form.property_type" class="form-control">
+                <option v-for="t in propertyTypes[form.category] || ['other']" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
           </div>
           <div class="form-group">
-            <label>Purpose</label>
+            <label>Purpose *</label>
             <select v-model="form.purpose" class="form-control">
               <option v-for="(label, key) in purposeLabels" :key="key" :value="key">{{ label }}</option>
             </select>
           </div>
-        </div>
+          <div class="form-group">
+            <label>Description *</label>
+            <textarea v-model="form.description" class="form-control" rows="4" placeholder="Describe the property…" required></textarea>
+          </div>
+        </template>
 
-        <div class="row">
+        <!-- 2. LOCATION -->
+        <template v-else-if="step === 2">
           <div class="form-group">
-            <label>Price</label>
-            <input v-model.number="form.price" type="number" min="0" class="form-control" required />
+            <label>Location / Street *</label>
+            <input v-model="form.location" class="form-control" placeholder="e.g. 12 Admiralty Way, Lekki Phase 1" required />
+          </div>
+          <div class="row">
+            <div class="form-group">
+              <label>City *</label>
+              <input v-model="form.city" class="form-control" placeholder="e.g. Lagos" required />
+            </div>
+            <div class="form-group">
+              <label>State *</label>
+              <input v-model="form.state" class="form-control" placeholder="e.g. Lagos" required />
+            </div>
           </div>
           <div class="form-group">
-            <label>Currency</label>
-            <select v-model="form.currency" class="form-control">
-              <option value="NGN">₦ NGN (Naira)</option>
-              <option value="USD">$ USD (Dollar)</option>
-              <option value="GBP">£ GBP (Pound)</option>
-              <option value="EUR">€ EUR (Euro)</option>
-              <option value="GHS">GH₵ GHS (Cedi)</option>
-              <option value="KES">KSh KES (Shilling)</option>
-              <option value="ZAR">R ZAR (Rand)</option>
-            </select>
+            <label>Country *</label>
+            <input v-model="form.country" class="form-control" placeholder="Nigeria" required />
           </div>
-        </div>
+        </template>
 
-        <div class="row">
-          <div class="form-group">
-            <label>Area (m², optional)</label>
-            <input v-model="form.area" type="number" class="form-control" />
+        <!-- 3. PHOTOS -->
+        <template v-else-if="step === 3">
+          <div class="row">
+            <div class="form-group">
+              <label>Images (up to 5)</label>
+              <input type="file" accept="image/*" multiple class="form-control" @change="onImages" />
+              <small class="hint">{{ images.length }} selected</small>
+            </div>
+            <div class="form-group">
+              <label>Videos</label>
+              <input type="file" accept="video/*" multiple class="form-control" @change="onVideos" />
+              <small class="hint">{{ videos.length }} selected</small>
+            </div>
           </div>
-        </div>
+          <p class="hint">Photos make your listing stand out — the first photo becomes the display picture.</p>
+        </template>
 
-        <div class="row">
-          <div class="form-group">
-            <label>Bedrooms (optional)</label>
-            <input v-model="form.bedrooms" type="number" class="form-control" />
+        <!-- 4. DETAILS -->
+        <template v-else-if="step === 4">
+          <div class="row">
+            <div class="form-group">
+              <label>Bedrooms</label>
+              <input v-model="form.bedrooms" type="number" min="0" class="form-control" />
+            </div>
+            <div class="form-group">
+              <label>Bathrooms</label>
+              <input v-model="form.bathrooms" type="number" min="0" class="form-control" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="form-group">
+              <label>Area (m²)</label>
+              <input v-model="form.area" type="number" min="0" class="form-control" />
+            </div>
+            <div class="form-group">
+              <label>Year Built</label>
+              <input v-model="form.year_built" type="number" min="0" class="form-control" />
+            </div>
           </div>
           <div class="form-group">
-            <label>Bathrooms (optional)</label>
-            <input v-model="form.bathrooms" type="number" class="form-control" />
+            <label>Amenities (JSON)</label>
+            <input v-model="form.amenities" class="form-control" placeholder='{"parking": true, "security": true}' />
           </div>
-        </div>
+          <div class="form-group">
+            <label>Attributes (JSON) — suggested keys for {{ categoryLabels[form.category] }}:
+              <code class="hint">{{ attrHints[form.category]?.join(', ') || 'none' }}</code>
+            </label>
+            <textarea v-model="form.attributes" class="form-control" rows="3" placeholder='{"furnished": true}'></textarea>
+          </div>
+        </template>
 
-        <div class="form-group">
-          <label>Description</label>
-          <textarea v-model="form.description" class="form-control" rows="4" required></textarea>
-        </div>
+        <!-- 5. PRICING -->
+        <template v-else-if="step === 5">
+          <div class="row">
+            <div class="form-group">
+              <label>Price *</label>
+              <input v-model.number="form.price" type="number" min="0" class="form-control" required />
+            </div>
+            <div class="form-group">
+              <label>Currency</label>
+              <select v-model="form.currency" class="form-control">
+                <option value="NGN">₦ NGN (Naira)</option>
+                <option value="USD">$ USD (Dollar)</option>
+                <option value="GBP">£ GBP (Pound)</option>
+                <option value="EUR">€ EUR (Euro)</option>
+                <option value="GHS">GH₵ GHS (Cedi)</option>
+                <option value="KES">KSh KES (Shilling)</option>
+                <option value="ZAR">R ZAR (Rand)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group check">
+            <label>
+              <input v-model="form.negotiable" type="checkbox" :true-value="1" :false-value="0" />
+              Price is negotiable
+            </label>
+          </div>
+        </template>
 
-        <div class="row">
-          <div class="form-group">
-            <label>Location / Street</label>
-            <input v-model="form.location" class="form-control" required />
+        <!-- 6. PUBLISH -->
+        <template v-else>
+          <div class="review">
+            <div class="review-row"><span>Title</span><b>{{ form.title || '—' }}</b></div>
+            <div class="review-row"><span>Category</span><b>{{ categoryLabels[form.category] }} · {{ form.property_type }} · {{ purposeLabels[form.purpose] }}</b></div>
+            <div class="review-row"><span>Location</span><b>{{ [form.location, form.city, form.state, form.country].filter(Boolean).join(', ') || '—' }}</b></div>
+            <div class="review-row"><span>Price</span><b>₦{{ Number(form.price).toLocaleString() }} {{ form.currency }} {{ form.negotiable ? '(negotiable)' : '' }}</b></div>
+            <div class="review-row"><span>Photos</span><b>{{ images.length }} images · {{ videos.length }} videos</b></div>
           </div>
-          <div class="form-group">
-            <label>City</label>
-            <input v-model="form.city" class="form-control" required />
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="form-group">
-            <label>State</label>
-            <input v-model="form.state" class="form-control" required />
-          </div>
-          <div class="form-group">
-            <label>Country</label>
-            <input v-model="form.country" class="form-control" required />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Amenities (JSON)</label>
-          <input v-model="form.amenities" class="form-control" placeholder='{"wifi": true, "parking": true}' />
-        </div>
-
-        <div class="form-group">
-          <label>Attributes (JSON) — suggested keys for {{ categoryLabels[form.category] }}:
-            <code class="hint">{{ attrHints[form.category]?.join(', ') || 'none' }}</code>
-          </label>
-          <textarea v-model="form.attributes" class="form-control" rows="3" placeholder='{"furnished": true}'></textarea>
-        </div>
-
-        <div class="row">
-          <div class="form-group">
-            <label>Images</label>
-            <input type="file" accept="image/*" multiple class="form-control" @change="onImages" />
-            <small class="hint">{{ images.length }} selected</small>
-          </div>
-          <div class="form-group">
-            <label>Videos</label>
-            <input type="file" accept="video/*" multiple class="form-control" @change="onVideos" />
-            <small class="hint">{{ videos.length }} selected</small>
-          </div>
-        </div>
+        </template>
 
         <p v-if="error" class="error-text">{{ error }}</p>
 
-        <button class="btn btn-primary btn-block" :disabled="loading">
-          {{ loading ? 'Creating…' : 'Create Listing' }}
-        </button>
+        <div class="wizard-actions">
+          <button v-if="step > 1" type="button" class="btn btn-outline" @click="prev">Back</button>
+          <button v-if="step < 6" type="button" class="btn btn-primary" :disabled="!stepValid" @click="next">Continue →</button>
+          <button v-else class="btn btn-primary" :disabled="loading">
+            {{ loading ? 'Publishing…' : 'Publish Listing' }}
+          </button>
+        </div>
       </form>
     </div>
   </div>
@@ -259,7 +322,53 @@ async function submit() {
 
 .sub {
   color: var(--color-muted);
-  margin-bottom: 30px;
+  margin-bottom: 26px;
+}
+
+.steps {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 26px;
+  flex-wrap: wrap;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 24px;
+  background: #f1f3f7;
+  color: var(--color-muted, #777);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.steps li.active {
+  background: var(--color-primary, #0a84ff);
+  color: #fff;
+}
+
+.steps li.done {
+  background: #e6f7ec;
+  color: #1a7f37;
+}
+
+.step-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.steps li.active .step-dot,
+.steps li.done .step-dot {
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .card {
@@ -276,8 +385,93 @@ async function submit() {
   gap: 18px;
 }
 
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.form-control {
+  border: 1.5px solid var(--color-border);
+  border-radius: 9px;
+  padding: 11px 13px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.form-group.check label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-dark);
+}
+
+.form-group.check input {
+  accent-color: var(--color-primary);
+  width: 18px;
+  height: 18px;
+}
+
 .hint {
   color: var(--color-muted);
   font-size: 0.8rem;
+}
+
+.review {
+  background: #f7f9fc;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.review-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef0f3;
+  font-size: 0.92rem;
+}
+
+.review-row:last-child {
+  border-bottom: none;
+}
+
+.review-row span {
+  color: var(--color-muted, #777);
+}
+
+.review-row b {
+  color: var(--color-dark, #222);
+  text-align: right;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+@media (max-width: 600px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+  .steps {
+    gap: 4px;
+  }
+  .steps li {
+    padding: 6px 9px;
+    font-size: 0.72rem;
+  }
 }
 </style>
