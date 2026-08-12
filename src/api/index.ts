@@ -329,6 +329,7 @@ export const messageApi = {
 export const callApi = {
   create: (receiverId: number, callType: 'audio' | 'video') =>
     api.post<Call>('/calls/', { receiver_id: receiverId, call_type: callType }),
+  turnCredentials: () => api.get<{ urls: string[]; username: string; credential: string }>('/calls/turn-credentials'),
   get: (callId: string) => api.get<Call>(`/calls/${callId}`),
   answer: (callId: string, accepted: boolean) =>
     api.post<Call>(`/calls/${callId}/answer`, { accepted }),

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { callState, callPhase, localStream, remoteStream, muted, videoEnabled, callError, calleeOnline, callManager } from '@/calls/callManager'
 import { useAuthStore } from '@/stores/auth'
 
@@ -7,13 +7,39 @@ const auth = useAuthStore()
 
 const remoteVideoEl = ref<HTMLVideoElement | null>(null)
 const localVideoEl = ref<HTMLVideoElement | null>(null)
+const remoteAudioEl = ref<HTMLAudioElement | null>(null)
 
+// Bind streams to elements. Runs after the DOM has rendered the element
+// (post-flush) so the srcObject is attached even if the stream arrives
+// before/while the element is created — otherwise media never plays.
 watch(remoteStream, (s) => {
-  if (remoteVideoEl.value && s) remoteVideoEl.value.srcObject = s
+  nextTick(() => {
+    if (remoteVideoEl.value && s) remoteVideoEl.value.srcObject = s
+    if (remoteAudioEl.value && s) remoteAudioEl.value.srcObject = s
+  })
 })
 watch(localStream, (s) => {
-  if (localVideoEl.value && s) localVideoEl.value.srcObject = s
+  nextTick(() => {
+    if (localVideoEl.value && s) localVideoEl.value.srcObject = s
+  })
 })
+
+// bind any stream that already exists when the element mounts (retry loop)
+function bindRemoteVideo(el: unknown) {
+  if (el && remoteStream.value) {
+    (el as HTMLVideoElement).srcObject = remoteStream.value
+  }
+}
+function bindLocalVideo(el: unknown) {
+  if (el && localStream.value) {
+    (el as HTMLVideoElement).srcObject = localStream.value
+  }
+}
+function bindRemoteAudio(el: unknown) {
+  if (el && remoteStream.value) {
+    (el as HTMLAudioElement).srcObject = remoteStream.value
+  }
+}
 
 const elapsed = ref(0)
 let timer: number | null = null
@@ -93,20 +119,29 @@ watch(
     <!-- Outgoing / active call: center overlay -->
     <div v-else-if="callPhase !== 'idle'" class="call-overlay">
       <div class="card" :class="{ video: callState?.call_type === 'video' && callPhase === 'active' }">
+        <!-- remote audio: always attached during a call (voice + video) -->
+        <audio
+          v-if="callPhase === 'active'"
+          :ref="bindRemoteAudio"
+          autoplay
+          class="remote-audio"
+        ></audio>
+
         <!-- remote video -->
         <video
           v-if="callState?.call_type === 'video' && callPhase === 'active'"
-          ref="remoteVideoEl"
+          :ref="bindRemoteVideo"
           autoplay
           playsinline
           class="remote-video"
         ></video>
         <div v-else class="avatar-big">
           {{ initials }}
-        </div>        <!-- local video PiP -->
+        </div>
+        <!-- local video PiP -->
         <video
           v-if="callState?.call_type === 'video' && callPhase === 'active'"
-          ref="localVideoEl"
+          :ref="bindLocalVideo"
           autoplay
           playsinline
           muted
@@ -291,6 +326,10 @@ watch(
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.remote-audio {
+  display: none;
 }
 
 .local-video {

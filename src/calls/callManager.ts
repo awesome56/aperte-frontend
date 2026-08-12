@@ -24,6 +24,25 @@ const STUN = { urls: 'stun:stun.l.google.com:19302' }
 const CALLING_TIMEOUT_MS = 30000
 const RINGING_TIMEOUT_MS = 45000
 
+// Fetch short-lived TURN credentials (for symmetric NAT / CGNAT networks
+// where peer-to-peer media cannot connect).
+async function getIceServers(): Promise<RTCIceServer[]> {
+  const servers: RTCIceServer[] = [STUN]
+  try {
+    const res = await callApi.turnCredentials()
+    if (res.data?.urls?.length) {
+      servers.push({
+        urls: res.data.urls,
+        username: res.data.username,
+        credential: res.data.credential,
+      })
+    }
+  } catch {
+    // TURN not configured — STUN only
+  }
+  return servers
+}
+
 let pc: RTCPeerConnection | null = null
 let signalAfter = 0
 let signalTimer: number | null = null
@@ -123,31 +142,33 @@ function setupPeer(callId: string, isCaller: boolean) {
   const stream = localStream.value
   if (!stream) return
 
-  pc = new RTCPeerConnection({ iceServers: [STUN] })
-  stream.getTracks().forEach((t) => pc!.addTrack(t, stream))
-  pc.ontrack = (e) => {
-    if (e.streams[0]) remoteStream.value = e.streams[0]
-  }
-  pc.onicecandidate = (e) => {
-    if (e.candidate) {
-      callApi.signal(callId, 'ice', { candidate: e.candidate.toJSON() }).catch(() => {})
+  getIceServers().then((iceServers) => {
+    pc = new RTCPeerConnection({ iceServers })
+    stream.getTracks().forEach((t) => pc!.addTrack(t, stream))
+    pc.ontrack = (e) => {
+      if (e.streams[0]) remoteStream.value = e.streams[0]
     }
-  }
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        callApi.signal(callId, 'ice', { candidate: e.candidate.toJSON() }).catch(() => {})
+      }
+    }
 
-  if (isCaller) {
-    pc.createOffer()
-      .then((offer) => {
-        pc!.setLocalDescription(offer)
-        return callApi.signal(callId, 'offer', { sdp: offer })
-      })
-      .catch(() => {
-        callError.value = 'Could not start the call.'
-      })
-  }
+    if (isCaller) {
+      pc.createOffer()
+        .then((offer) => {
+          pc!.setLocalDescription(offer)
+          return callApi.signal(callId, 'offer', { sdp: offer })
+        })
+        .catch(() => {
+          callError.value = 'Could not start the call.'
+        })
+    }
 
-  // poll for the other party's signals during setup
-  signalTimer = window.setInterval(() => pollSignals(callId), 700)
-  pollSignals(callId)
+    // poll for the other party's signals during setup
+    signalTimer = window.setInterval(() => pollSignals(callId), 700)
+    pollSignals(callId)
+  })
 }
 
 async function pollSignals(callId: string) {
