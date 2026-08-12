@@ -1,41 +1,32 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
-import {
-  propertyApi,
-  bookingApi,
-  roomApi,
-  slotApi,
-  userApi,
-  authApi,
-  type Property,
-  type Booking,
-  type Room,
-  type Slot,
-  bookingStatusLabels,
-  formatPrice,
-} from '@/api'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { propertyApi, bookingApi, requestApi, userApi, type Property, type Booking, type Request, bookingStatusLabels, formatPrice } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
-const tab = ref('properties')
+const router = useRouter()
 
-// my properties
+const tab = ref('properties')
+const tabs = ['properties', 'bookings', 'requests', 'profile']
+
+const TAB_LABELS: Record<string, string> = {
+  properties: 'My Properties',
+  bookings: 'My Bookings',
+  requests: 'My Requests',
+  profile: 'Profile',
+}
+
+// lazy tab loading
+const loadedTabs = ref<Set<string>>(new Set(['properties']))
+
 const properties = ref<Property[]>([])
-// my bookings (as customer)
 const myBookings = ref<Booking[]>([])
-// selected property for management
-const selected = ref<Property | null>(null)
-const rooms = ref<Room[]>([])
-const slots = ref<Slot[]>([])
-const propertyBookings = ref<Booking[]>([])
+const myRequests = ref<Request[]>([])
 const loading = ref(false)
 const msg = ref('')
 const err = ref('')
 
-// room form
-const roomForm = reactive({ room_type: '', beds: 1, price: 0, amenities: '' })
-// slot form
-const slotForm = reactive({ date: '', start_time: '', end_time: '', price: 0 })
 // profile
 const profileForm = reactive({ full_name: '', phone_number: '' })
 const dpFile = ref<File | null>(null)
@@ -45,14 +36,23 @@ const pwMsg = ref('')
 const pwErr = ref('')
 const pwLoading = ref(false)
 
-function fmt(n: number | null | undefined) {
-  if (n == null) return '—'
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
+const stats = computed(() => ({
+  properties: properties.value.length,
+  activeBookings: myBookings.value.filter((b) => b.status === 'pending' || b.status === 'confirmed').length,
+  requests: myRequests.value.length,
+}))
+
+function selectTab(t: string) {
+  tab.value = t
+  if (!loadedTabs.value.has(t)) {
+    loadedTabs.value.add(t)
+    if (t === 'requests') loadRequests()
+    if (t === 'profile') initProfile()
+  }
 }
 
-async function loadAll() {
-  if (!auth.user) return
-  // ensure we have a full user profile (id) before fetching user-scoped data
+async function loadProperties() {
+  if (!auth.user?.id) return
   if (!auth.user.id) await auth.fetchMe()
   if (!auth.user?.id) return
   loading.value = true
@@ -71,167 +71,43 @@ async function loadAll() {
   }
 }
 
-async function selectProperty(id: number) {
-  selected.value = properties.value.find((p) => p.id === id) || null
-  if (!selected.value) return
-  rooms.value = []
-  slots.value = []
-  propertyBookings.value = []
-  // fetch full detail so images[] is available for management
+async function loadRequests() {
+  if (!auth.user?.id) return
   try {
-    const detail = await propertyApi.get(id)
-    selected.value = detail.data
-  } catch {
-    // fall back to the list item if detail fetch fails
-  }
-  const cat = selected.value.category
-  if (cat === 'hotel') {
-    const r = await roomApi.list(id)
-    rooms.value = r.data.data
-  } else if (cat === 'hall' || cat === 'event_center') {
-    const s = await slotApi.list(id)
-    slots.value = s.data.data
-  }
-  const b = await bookingApi.property(id)
-  propertyBookings.value = b.data.data
-}
-
-async function addRoom() {
-  if (!selected.value) return
-  try {
-    await roomApi.create(selected.value.id, {
-      room_type: roomForm.room_type,
-      beds: Number(roomForm.beds),
-      price: Number(roomForm.price),
-      amenities: roomForm.amenities ? JSON.parse(roomForm.amenities) : {},
-    })
-    msg.value = 'Room added.'
-    await selectProperty(selected.value.id)
-    roomForm.room_type = ''
-    roomForm.beds = 1
-    roomForm.price = 0
-    roomForm.amenities = ''
+    const r = await requestApi.list(auth.user.id, { per_page: 50 })
+    myRequests.value = r.data.data
   } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to add room.'
+    err.value = e.response?.data?.error || 'Failed to load requests.'
   }
 }
 
-async function deleteRoom(id: number) {
+function initProfile() {
+  profileForm.full_name = auth.user?.full_name || ''
+  profileForm.phone_number = auth.user?.phone_number != null ? String(auth.user.phone_number) : ''
+}
+
+function manageProperty(id: number) {
+  router.push({ name: 'property-manage', params: { id } })
+}
+
+async function cancelBooking(id: number) {
   try {
-    await roomApi.delete(id)
-    msg.value = 'Room deleted.'
-    await selectProperty(selected.value!.id)
+    await bookingApi.updateStatus(id, 'cancelled')
+    msg.value = 'Booking cancelled.'
+    await loadProperties()
   } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to delete room.'
+    err.value = e.response?.data?.error || 'Failed to cancel booking.'
   }
 }
 
-async function uploadRoomImages(roomId: number, e: Event) {
-  const files = Array.from((e.target as HTMLInputElement).files || [])
-  if (!files.length) return
+async function removeRequest(id: number) {
+  if (!window.confirm('Delete this request?')) return
   try {
-    await roomApi.uploadImages(roomId, files)
-    msg.value = 'Room images uploaded.'
-    await selectProperty(selected.value!.id)
-  } catch (e2: any) {
-    err.value = e2.response?.data?.error || 'Failed to upload room images.'
-  } finally {
-    ;(e.target as HTMLInputElement).value = ''
-  }
-}
-
-async function deleteRoomImage(id: number) {
-  try {
-    await roomApi.deleteImage(id)
-    msg.value = 'Room image deleted.'
-    await selectProperty(selected.value!.id)
+    await requestApi.remove(id)
+    msg.value = 'Request deleted.'
+    await loadRequests()
   } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to delete room image.'
-  }
-}
-
-async function setRoomDp(roomId: number, imageId: number) {
-  try {
-    await roomApi.setDp(imageId)
-    msg.value = 'Room display picture updated.'
-    await selectProperty(selected.value!.id)
-  } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to set room display picture.'
-  }
-}
-
-async function uploadPropertyImages(e: Event) {
-  const files = Array.from((e.target as HTMLInputElement).files || [])
-  if (!files.length || !selected.value) return
-  try {
-    await propertyApi.uploadImages(selected.value.id, files)
-    msg.value = 'Property photos uploaded.'
-    await selectProperty(selected.value.id)
-  } catch (e2: any) {
-    err.value = e2.response?.data?.error || 'Failed to upload property photos.'
-  } finally {
-    ;(e.target as HTMLInputElement).value = ''
-  }
-}
-
-async function setPropertyDp(imageId: number) {
-  try {
-    await propertyApi.setDp(imageId)
-    msg.value = 'Display picture updated.'
-    await selectProperty(selected.value!.id)
-  } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to set display picture.'
-  }
-}
-
-async function deletePropertyImage(imageId: number) {
-  try {
-    await propertyApi.deleteImage(imageId)
-    msg.value = 'Photo deleted.'
-    await selectProperty(selected.value!.id)
-  } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to delete photo.'
-  }
-}
-
-async function addSlot() {
-  if (!selected.value) return
-  try {
-    await slotApi.create(selected.value.id, {
-      date: slotForm.date,
-      start_time: slotForm.start_time,
-      end_time: slotForm.end_time,
-      price: Number(slotForm.price),
-    })
-    msg.value = 'Slot added.'
-    await selectProperty(selected.value.id)
-    slotForm.date = ''
-    slotForm.start_time = ''
-    slotForm.end_time = ''
-    slotForm.price = 0
-  } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to add slot.'
-  }
-}
-
-async function deleteSlot(id: number) {
-  try {
-    await slotApi.delete(id)
-    msg.value = 'Slot deleted.'
-    await selectProperty(selected.value!.id)
-  } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to delete slot.'
-  }
-}
-
-async function setBookingStatus(id: number, status: string) {
-  try {
-    await bookingApi.updateStatus(id, status)
-    msg.value = `Booking ${status}.`
-    if (selected.value) await selectProperty(selected.value.id)
-    await loadAll()
-  } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to update booking.'
+    err.value = e.response?.data?.error || 'Failed to delete request.'
   }
 }
 
@@ -262,6 +138,7 @@ async function changePassword() {
   }
   pwLoading.value = true
   try {
+    const { authApi } = await import('@/api')
     const res = await authApi.changePassword(pwForm.old_password, pwForm.new_password, pwForm.comfirm_password)
     pwMsg.value = res.data.msg || 'Password changed successfully.'
     pwForm.old_password = ''
@@ -274,213 +151,180 @@ async function changePassword() {
   }
 }
 
-watch(tab, () => {
-  msg.value = ''
-  err.value = ''
-})
+function fmtDate(s: string) {
+  return new Date(s).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
 
-onMounted(loadAll)
+function fmtPriceN(n: number | null | undefined) {
+  if (n == null) return '—'
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
+}
+
+onMounted(loadProperties)
 </script>
 
 <template>
   <div class="dash container">
-    <h1>Dashboard</h1>
-    <p class="sub">Welcome back, {{ auth.user?.full_name }}</p>
+    <!-- header -->
+    <div class="dash-head">
+      <div class="dash-welcome">
+        <div class="dash-avatar" v-if="auth.user?.profile_picture">
+          <img :src="auth.user.profile_picture" alt="" />
+        </div>
+        <div class="dash-avatar placeholder-avatar" v-else>
+          {{ auth.user?.full_name?.[0]?.toUpperCase() || 'A' }}
+        </div>
+        <div>
+          <h1>Welcome back, {{ auth.user?.full_name?.split(' ')[0] || 'there' }}</h1>
+          <p>Manage your properties, bookings and requests from one place.</p>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        <RouterLink to="/add-listing" class="btn btn-primary">+ Add Listing</RouterLink>
+        <RouterLink to="/create-request" class="btn btn-outline">Post a Request</RouterLink>
+      </div>
+    </div>
+
+    <!-- mobile activity summary -->
+    <div class="activity-cards">
+      <RouterLink to="/dashboard" class="act-card" @click="selectTab('properties')">
+        <b>{{ stats.properties }}</b><span>My Properties</span>
+      </RouterLink>
+      <RouterLink to="/dashboard" class="act-card" @click="selectTab('bookings')">
+        <b>{{ stats.activeBookings }}</b><span>Active Bookings</span>
+      </RouterLink>
+      <RouterLink to="/dashboard" class="act-card" @click="selectTab('requests')">
+        <b>{{ stats.requests }}</b><span>My Requests</span>
+      </RouterLink>
+    </div>
 
     <p v-if="msg" class="success-text banner">{{ msg }}</p>
     <p v-if="err" class="error-text banner">{{ err }}</p>
 
-    <div class="tabs">
-      <button :class="{ active: tab === 'properties' }" @click="tab = 'properties'">My Properties</button>
-      <button :class="{ active: tab === 'bookings' }" @click="tab = 'bookings'">My Bookings</button>
-      <button :class="{ active: tab === 'profile' }" @click="tab = 'profile'">Profile</button>
-    </div>
-
-    <div class="quick-actions">
-      <RouterLink to="/create-request" class="btn btn-primary">Post a Request</RouterLink>
-      <RouterLink to="/requests" class="btn btn-outline">My Requests</RouterLink>
+    <!-- tabs -->
+    <div class="tabs" role="tablist">
+      <button
+        v-for="t in tabs"
+        :key="t"
+        :class="{ active: tab === t }"
+        @click="selectTab(t)"
+        role="tab"
+        :aria-selected="tab === t"
+      >{{ TAB_LABELS[t] }}</button>
     </div>
 
     <!-- MY PROPERTIES -->
-    <div v-if="tab === 'properties'" class="panel">
+    <div v-if="tab === 'properties'" class="panel" role="tabpanel">
       <div v-if="loading" class="loading">Loading…</div>
-      <template v-else>
-        <div v-if="!properties.length" class="empty">
-          <p>You have no listings yet.</p>
-          <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
-        </div>
-
-        <div v-else class="prop-list">
-          <div v-for="p in properties" :key="p.id" class="prop-row" :class="{ active: selected?.id === p.id }">
-            <div class="prop-info" @click="selectProperty(p.id)">
-              <img v-if="p.dp || p.images?.[0]" :src="p.dp || p.images?.[0]?.image_url" alt="" class="thumb" />
-              <div class="placeholder" v-else></div>
-              <div>
-                <strong>{{ p.title }}</strong>
-                <span class="meta">{{ p.city }}, {{ p.state }} · {{ formatPrice(p.price, p.currency) }} · {{ p.category }}</span>
-                <span class="meta stats" v-if="p.views != null || p.favorites_count != null">
-                  {{ p.views != null ? p.views + ' views' : '' }}<template v-if="p.views != null && p.favorites_count != null"> · </template>{{ p.favorites_count != null ? p.favorites_count + ' ♥' : '' }}
-                </span>
-              </div>
+      <div v-else-if="!properties.length" class="empty">
+        <p>You have no listings yet.</p>
+        <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
+      </div>
+      <div v-else class="prop-list">
+        <div v-for="p in properties" :key="p.id" class="prop-card">
+          <img v-if="p.dp || p.images?.[0]" :src="p.dp || p.images?.[0]?.image_url" alt="" class="prop-thumb" />
+          <div class="prop-ph" v-else></div>
+          <div class="prop-body">
+            <div class="prop-title-row">
+              <strong class="prop-title">{{ p.title }}</strong>
+              <span class="status-badge" :class="p.approved ? 'ok' : 'no'">{{ p.approved ? 'Approved' : 'Pending' }}</span>
             </div>
-            <RouterLink :to="`/properties/${p.id}`" class="btn btn-outline btn-sm">View</RouterLink>
-          </div>
-        </div>
-
-        <div v-if="selected" class="manage">
-          <h2>{{ selected.title }} — Management</h2>
-
-          <!-- Rooms (hotel) -->
-          <div v-if="selected.category === 'hotel'" class="manage-block">
-            <h3>Rooms</h3>
-            <div v-if="rooms.length" class="mini-list">
-              <div v-for="r in rooms" :key="r.id" class="mini-row room-manage">
-                <div class="room-manage-main">
-                  <div class="room-thumbs">
-                    <div v-for="img in (r.images || [])" :key="img.id" class="room-thumb" :class="{ active: img.dp === 1 }">
-                      <img :src="img.image_url" :alt="r.room_type" />
-                      <button class="thumb-dp" title="Set as display picture" @click="setRoomDp(r.id, img.id)">★</button>
-                      <button class="thumb-del" title="Delete image" @click="deleteRoomImage(img.id)">×</button>
-                    </div>
-                  </div>
-                  <div class="room-manage-info">
-                    <RouterLink :to="`/rooms/${r.id}`"><strong>{{ r.room_type }}</strong></RouterLink>
-                    <span>{{ formatPrice(r.price, selected?.currency) }}/night ({{ r.beds }} bed{{ r.beds > 1 ? 's' : '' }})</span>
-                    <label class="file-btn">
-                      Upload Images
-                      <input type="file" accept="image/*" multiple @change="(e) => uploadRoomImages(r.id, e)" />
-                    </label>
-                  </div>
-                </div>
-                <button class="btn btn-danger btn-sm" @click="deleteRoom(r.id)">Delete Room</button>
-              </div>
+            <span class="prop-meta">{{ p.city }}, {{ p.state }} · {{ formatPrice(p.price, p.currency) }} · {{ p.category }}</span>
+            <div class="prop-stats">
+              <span v-if="p.views != null">{{ p.views }} views</span>
+              <span v-if="p.favorites_count != null">{{ p.favorites_count }} ♥</span>
+              <span :class="p.available ? 'ok-text' : 'bad-text'">{{ p.available ? 'Available' : 'Unavailable' }}</span>
             </div>
-            <p v-else class="empty">No rooms.</p>
-            <div class="inline-form">
-              <input v-model="roomForm.room_type" placeholder="Room type (e.g. Deluxe)" />
-              <input v-model.number="roomForm.beds" type="number" min="1" placeholder="Beds" />
-              <input v-model.number="roomForm.price" type="number" min="0" placeholder="Price/night" />
-              <button class="btn btn-primary btn-sm" @click="addRoom">Add Room</button>
-            </div>
-          </div>
-
-          <!-- Slots (hall/event center) -->
-          <div v-if="selected.category === 'hall' || selected.category === 'event_center'" class="manage-block">
-            <h3>Time Slots</h3>
-            <div v-if="slots.length" class="mini-list">
-              <div v-for="s in slots" :key="s.id" class="mini-row">
-                <span>{{ s.date }} {{ s.start_time }}–{{ s.end_time }} · {{ formatPrice(s.price, selected?.currency) }} · <b>{{ s.status }}</b></span>
-                <button class="btn btn-danger btn-sm" @click="deleteSlot(s.id)">Delete</button>
-              </div>
-            </div>
-            <p v-else class="empty">No slots.</p>
-            <div class="inline-form">
-              <input v-model="slotForm.date" type="date" />
-              <input v-model="slotForm.start_time" placeholder="Start (HH:MM)" />
-              <input v-model="slotForm.end_time" placeholder="End (HH:MM)" />
-              <input v-model.number="slotForm.price" type="number" min="0" placeholder="Price" />
-              <button class="btn btn-primary btn-sm" @click="addSlot">Add Slot</button>
-            </div>
-          </div>
-
-          <!-- Property photos -->
-          <div v-if="selected.images?.length" class="manage-block">
-            <h3>Property Photos ({{ selected.images.length }}/5)</h3>
-            <div class="prop-photos">
-              <div v-for="img in selected.images" :key="img.id" class="prop-photo" :class="{ active: img.dp === 1 }">
-                <img :src="img.image_url" alt="" />
-                <span v-if="img.dp === 1" class="photo-dp">Display</span>
-                <button v-else class="photo-set" title="Set as display picture" @click="setPropertyDp(img.id)">Set as Display</button>
-                <button class="photo-del" title="Delete image" @click="deletePropertyImage(img.id)">×</button>
-              </div>
-            </div>
-          </div>
-          <div class="manage-block">
-            <h3>Add Property Photos (max 5 total)</h3>
-            <label class="file-btn">
-              Upload Photos
-              <input type="file" accept="image/*" multiple @change="uploadPropertyImages" />
-            </label>
-          </div>
-
-          <!-- Bookings for this property -->
-          <div v-if="propertyBookings.length" class="manage-block">
-            <h3>Bookings</h3>
-            <div class="mini-list">
-              <div v-for="b in propertyBookings" :key="b.id" class="mini-row booking-row">
-                <span>
-                  #{{ b.id }} · {{ b.check_in || '—' }} → {{ b.check_out || '—' }} · {{ formatPrice(b.total, selected?.currency) }} ·
-                  <b>{{ bookingStatusLabels[b.status] || b.status }}</b>
-                </span>
-                <div class="row-actions">
-                  <button v-if="b.status === 'pending'" class="btn btn-primary btn-sm" @click="setBookingStatus(b.id, 'confirmed')">Confirm</button>
-                  <button v-if="b.status === 'pending'" class="btn btn-danger btn-sm" @click="setBookingStatus(b.id, 'cancelled')">Reject</button>
-                  <button v-if="b.status === 'confirmed'" class="btn btn-outline btn-sm" @click="setBookingStatus(b.id, 'completed')">Complete</button>
-                </div>
-              </div>
+            <div class="prop-actions">
+              <button class="btn btn-primary btn-sm" @click="manageProperty(p.id)">Manage Property</button>
+              <RouterLink :to="`/properties/${p.id}`" class="btn btn-outline btn-sm">View</RouterLink>
             </div>
           </div>
         </div>
-      </template>
+      </div>
     </div>
 
     <!-- MY BOOKINGS -->
-    <div v-if="tab === 'bookings'" class="panel">
+    <div v-else-if="tab === 'bookings'" class="panel" role="tabpanel">
       <div v-if="loading" class="loading">Loading…</div>
       <div v-else-if="!myBookings.length" class="empty">
         <p>You have no bookings yet.</p>
         <RouterLink to="/listings" class="btn btn-primary">Browse Properties</RouterLink>
       </div>
-      <div v-else class="mini-list">
-        <div v-for="b in myBookings" :key="b.id" class="mini-row booking-row">
-          <span>
-            #{{ b.id }} · Property {{ b.property_id }} · {{ b.check_in || '—' }} → {{ b.check_out || '—' }} ·
-            {{ formatPrice(b.total, 'NGN') }} · <b>{{ bookingStatusLabels[b.status] || b.status }}</b>
-          </span>
-          <div class="row-actions">
-            <button v-if="b.status === 'pending' || b.status === 'confirmed'" class="btn btn-danger btn-sm" @click="setBookingStatus(b.id, 'cancelled')">Cancel</button>
+      <div v-else class="book-list">
+        <div v-for="b in myBookings" :key="b.id" class="book-row">
+          <div>
+            <strong>Booking #{{ b.id }} · Property {{ b.property_id }}</strong>
+            <span class="book-meta">{{ b.check_in || '—' }} → {{ b.check_out || '—' }} · {{ formatPrice(b.total, 'NGN') }}</span>
+          </div>
+          <span class="status-badge" :class="b.status">{{ bookingStatusLabels[b.status] || b.status }}</span>
+          <button v-if="b.status === 'pending' || b.status === 'confirmed'" class="btn btn-danger btn-sm" @click="cancelBooking(b.id)">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY REQUESTS -->
+    <div v-else-if="tab === 'requests'" class="panel" role="tabpanel">
+      <div v-if="!myRequests.length" class="empty">
+        <p>You have not created any requests yet.</p>
+        <RouterLink to="/create-request" class="btn btn-primary">Post a Request</RouterLink>
+      </div>
+      <div v-else class="req-list">
+        <div v-for="r in myRequests" :key="r.id" class="req-card">
+          <div class="req-main">
+            <strong>{{ r.title }}</strong>
+            <span class="req-meta">{{ r.property_type }} · {{ r.city || '—' }}, {{ r.state || '—' }}</span>
+            <span class="req-meta">₦{{ fmtPriceN(r.min_price) }} – ₦{{ fmtPriceN(r.max_price) }} · {{ fmtDate(r.created_at) }}</span>
+          </div>
+          <div class="req-actions">
+            <RouterLink :to="{ name: 'messages', query: { request: r.id } }" class="btn btn-primary btn-sm">Messages</RouterLink>
+            <RouterLink :to="{ name: 'create-request', query: { edit: r.id } }" class="btn btn-outline btn-sm">Edit</RouterLink>
+            <button class="btn btn-danger btn-sm" @click="removeRequest(r.id)">Delete</button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- PROFILE -->
-    <div v-if="tab === 'profile'" class="panel">
-      <div class="profile-card">
-        <div class="form-group">
-          <label>Full Name</label>
-          <input v-model="profileForm.full_name" class="form-control" />
+    <div v-else class="panel" role="tabpanel">
+      <div class="profile-grid">
+        <div class="profile-card">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input v-model="profileForm.full_name" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input v-model="profileForm.phone_number" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label>Profile Picture</label>
+            <input type="file" accept="image/*" class="form-control" @change="onDp" />
+          </div>
+          <button class="btn btn-primary" @click="saveProfile">Save Profile</button>
         </div>
-        <div class="form-group">
-          <label>Phone Number</label>
-          <input v-model="profileForm.phone_number" class="form-control" />
-        </div>
-        <div class="form-group">
-          <label>Profile Picture</label>
-          <input type="file" accept="image/*" class="form-control" @change="onDp" />
-        </div>
-        <button class="btn btn-primary" @click="saveProfile">Save Profile</button>
-      </div>
 
-      <div class="profile-card pw-card">
-        <h3>Change Password</h3>
-        <p v-if="pwMsg" class="success-text">{{ pwMsg }}</p>
-        <p v-if="pwErr" class="error-text">{{ pwErr }}</p>
-        <div class="form-group">
-          <label>Old Password</label>
-          <input v-model="pwForm.old_password" type="password" class="form-control" />
+        <div class="profile-card pw-card">
+          <h3>Change Password</h3>
+          <p v-if="pwMsg" class="success-text">{{ pwMsg }}</p>
+          <p v-if="pwErr" class="error-text">{{ pwErr }}</p>
+          <div class="form-group">
+            <label>Old Password</label>
+            <input v-model="pwForm.old_password" type="password" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input v-model="pwForm.new_password" type="password" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input v-model="pwForm.comfirm_password" type="password" class="form-control" />
+          </div>
+          <button class="btn btn-primary" :disabled="pwLoading" @click="changePassword">
+            {{ pwLoading ? 'Changing…' : 'Change Password' }}
+          </button>
         </div>
-        <div class="form-group">
-          <label>New Password</label>
-          <input v-model="pwForm.new_password" type="password" class="form-control" />
-        </div>
-        <div class="form-group">
-          <label>Confirm New Password</label>
-          <input v-model="pwForm.comfirm_password" type="password" class="form-control" />
-        </div>
-        <button class="btn btn-primary" :disabled="pwLoading" @click="changePassword">
-          {{ pwLoading ? 'Changing…' : 'Change Password' }}
-        </button>
       </div>
     </div>
   </div>
@@ -488,365 +332,385 @@ onMounted(loadAll)
 
 <style scoped>
 .dash {
-  padding: 50px 0 70px;
+  padding: 40px 0 70px;
 }
 
-.dash h1 {
-  font-size: 2.2rem;
-  color: var(--color-purple-dark);
-}
-
-.sub {
-  color: var(--color-muted);
-  margin-bottom: 24px;
-}
-
-.banner {
-  margin-bottom: 16px;
-}
-
-.tabs {
+.dash-head {
   display: flex;
-  gap: 8px;
-  border-bottom: 2px solid var(--color-border);
-  margin-bottom: 24px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
 }
 
-.tabs button {
-  padding: 12px 20px;
-  border: none;
-  background: transparent;
-  font-weight: 500;
-  color: var(--color-muted);
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
+.dash-welcome {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.tabs button.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+.dash-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.panel {
-  min-height: 200px;
+.dash-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.placeholder-avatar {
+  background: var(--color-primary, #0a84ff);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.dash-head h1 {
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  color: var(--color-purple-dark, #2b2358);
+}
+
+.dash-head p {
+  color: var(--color-muted, #666);
+  font-size: 0.92rem;
 }
 
 .quick-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin: 16px 0 24px;
+}
+
+/* mobile activity summary */
+.activity-cards {
+  display: none;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.act-card {
+  flex: 1;
+  background: #f8f9fc;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+}
+
+.act-card b {
+  font-size: 1.3rem;
+  color: var(--color-dark, #222);
+}
+
+.act-card span {
+  font-size: 0.78rem;
+  color: var(--color-muted, #777);
+}
+
+.banner {
+  margin-bottom: 14px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 2px solid var(--color-border, #e8ecf3);
+  margin-bottom: 22px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs button {
+  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  color: var(--color-muted, #777);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.tabs button.active {
+  color: var(--color-primary, #0a84ff);
+  border-bottom-color: var(--color-primary, #0a84ff);
+}
+
+.panel {
+  min-height: 200px;
 }
 
 .empty {
   text-align: center;
-  color: var(--color-muted);
+  color: var(--color-muted, #888);
   padding: 60px 0;
 }
 
 .empty p {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
+/* property cards */
 .prop-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 30px;
-}
-
-.prop-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1.5px solid var(--color-border);
-  border-radius: 12px;
-  padding: 14px 18px;
-}
-
-.prop-row.active {
-  border-color: var(--color-primary);
-}
-
-.prop-info {
-  display: flex;
-  align-items: center;
   gap: 14px;
-  cursor: pointer;
-  flex: 1;
 }
 
-.thumb {
-  width: 56px;
-  height: 56px;
+.prop-card {
+  display: flex;
+  gap: 14px;
+  background: #fff;
+  border: 1.5px solid var(--color-border, #e8ecf3);
+  border-radius: 14px;
+  padding: 14px;
+  align-items: stretch;
+}
+
+.prop-thumb,
+.prop-ph {
+  width: 150px;
+  min-height: 110px;
   border-radius: 10px;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
-.placeholder {
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
-  background: var(--color-bg-blue);
+.prop-ph {
+  background: #eef0f3;
 }
 
-.meta {
-  display: block;
-  color: var(--color-muted);
-  font-size: 0.85rem;
-}
-
-.manage {
-  background: var(--color-bg-soft);
-  border-radius: var(--radius);
-  padding: 30px;
-}
-
-.manage h2 {
-  color: var(--color-purple-dark);
-  margin-bottom: 20px;
-}
-
-.manage-block {
-  margin-bottom: 28px;
-}
-
-.manage-block h3 {
-  color: var(--color-purple-dark);
-  margin-bottom: 12px;
-}
-
-.mini-list {
+.prop-body {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
-.mini-row {
+.prop-title-row {
   display: flex;
   align-items: center;
+  gap: 10px;
   justify-content: space-between;
+}
+
+.prop-title {
+  color: var(--color-dark, #222);
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-badge.ok { background: #e6f7ec; color: #1a7f37; }
+.status-badge.no { background: #fff4e5; color: #b7791f; }
+.status-badge.pending { background: #fff4e5; color: #b7791f; }
+.status-badge.confirmed { background: #e6f7ec; color: #1a7f37; }
+.status-badge.completed { background: #eef4ff; color: #0a84ff; }
+.status-badge.cancelled { background: #ffeceb; color: #d0342c; }
+
+.prop-meta {
+  color: var(--color-muted, #777);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prop-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 0.82rem;
+  color: var(--color-muted, #777);
+}
+
+.ok-text { color: #1a7f37; }
+.bad-text { color: #d0342c; }
+
+.prop-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+
+/* bookings */
+.book-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.book-row {
+  display: flex;
+  align-items: center;
   gap: 12px;
   background: #fff;
-  border-radius: 10px;
-  padding: 12px 16px;
-  font-size: 0.92rem;
-}
-
-.booking-row {
+  border: 1.5px solid var(--color-border, #e8ecf3);
+  border-radius: 12px;
+  padding: 14px 16px;
   flex-wrap: wrap;
 }
 
-.row-actions {
+.book-row > div {
+  flex: 1;
+  min-width: 180px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.inline-form {
+.book-meta {
+  color: var(--color-muted, #777);
+  font-size: 0.85rem;
+}
+
+/* requests */
+.req-list {
   display: flex;
+  flex-direction: column;
   gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 14px;
 }
 
-.inline-form input {
-  border: 1.5px solid var(--color-border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  min-width: 120px;
-}
-
-.btn-danger {
-  background: var(--color-danger);
-  color: #fff;
-}
-
-/* room management */
-.room-manage {
-  align-items: flex-start;
-  flex-direction: column;
-}
-
-.room-manage-main {
+.req-card {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1.5px solid var(--color-border, #e8ecf3);
+  border-radius: 12px;
+  padding: 14px 16px;
   flex-wrap: wrap;
 }
 
-.room-thumbs {
+.req-main {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.req-meta {
+  color: var(--color-muted, #777);
+  font-size: 0.85rem;
+}
+
+.req-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.room-thumb {
-  position: relative;
-  width: 88px;
-  height: 64px;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 2px solid transparent;
-}
-
-.room-thumb.active {
-  border-color: var(--color-primary);
-}
-
-.room-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.thumb-dp {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(0, 0, 0, 0.6);
-  color: #ffd700;
-  font-size: 0.7rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.thumb-del {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(220, 20, 20, 0.85);
-  color: #fff;
-  font-size: 0.85rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.room-manage-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.room-manage-info a {
-  color: var(--color-dark);
-}
-
-.room-manage-info a:hover {
-  color: var(--color-primary);
-}
-
-.file-btn {
-  display: inline-flex;
-  align-items: center;
-  margin-top: 6px;
-  padding: 8px 14px;
-  border: 1.5px solid var(--color-primary);
-  border-radius: 8px;
-  color: var(--color-primary);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.file-btn input {
-  display: none;
-}
-
-/* property photos */
-.prop-photos {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.prop-photo {
-  position: relative;
-  width: 140px;
-  height: 100px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 2px solid transparent;
-}
-
-.prop-photo.active {
-  border-color: var(--color-primary);
-}
-
-.prop-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.photo-dp {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 0.7rem;
-  background: var(--color-primary);
-  color: #fff;
-  padding: 3px;
-}
-
-.photo-set {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  border: none;
-  font-size: 0.7rem;
-  background: rgba(0, 0, 0, 0.7);
-  color: #fff;
-  padding: 4px;
-  cursor: pointer;
-}
-
-.photo-del {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(220, 20, 20, 0.85);
-  color: #fff;
-  cursor: pointer;
+/* profile */
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 960px;
 }
 
 .profile-card {
-  max-width: 460px;
-  background: var(--color-bg-soft);
-  border-radius: var(--radius);
-  padding: 30px;
+  background: #f8f9fc;
+  border-radius: 14px;
+  padding: 24px;
 }
 
-.pw-card {
-  margin-top: 30px;
+.profile-card h3 {
+  margin-bottom: 14px;
+  color: var(--color-dark, #222);
 }
 
-.pw-card h3 {
-  color: var(--color-purple-dark);
-  margin-bottom: 16px;
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
 }
 
-.pw-card .form-group {
-  margin-bottom: 16px;
+.form-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-muted, #666);
+}
+
+.form-control {
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
 }
 
 .loading {
   text-align: center;
-  color: var(--color-muted);
+  color: var(--color-muted, #888);
   padding: 60px;
+}
+
+@media (max-width: 768px) {
+  .dash-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .quick-actions {
+    width: 100%;
+  }
+  .quick-actions .btn {
+    flex: 1;
+    text-align: center;
+  }
+  .activity-cards {
+    display: flex;
+  }
+  .prop-card {
+    flex-direction: column;
+  }
+  .prop-thumb,
+  .prop-ph {
+    width: 100%;
+    height: 150px;
+  }
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .book-row,
+  .req-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .book-row .btn,
+  .req-actions .btn {
+    align-self: flex-start;
+  }
 }
 </style>

@@ -7,6 +7,7 @@ interface User {
   username: string
   email: string
   full_name: string
+  phone_number?: number | null
   profile_picture: string
   email_verified?: number
   role?: string

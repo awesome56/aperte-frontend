@@ -28,6 +28,12 @@ const router = createRouter({
       component: () => import('../views/PropertyDetailView.vue'),
     },
     {
+      path: '/properties/manage/:id',
+      name: 'property-manage',
+      component: () => import('../views/PropertyManageView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/rooms/:id',
       name: 'room-detail',
       component: () => import('../views/RoomDetailView.vue'),
