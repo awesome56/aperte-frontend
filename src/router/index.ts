@@ -87,45 +87,33 @@ const router = createRouter({
     {
       path: '/admin',
       name: 'admin',
-      component: () => import('../views/admin/AdminLayout.vue'),
+      redirect: () => ({ path: '/dashboard', query: { section: 'overview' } }),
       meta: { requiresAuth: true, requiresAdmin: true },
-      children: [
-        {
-          path: '',
-          name: 'admin-overview',
-          component: () => import('../views/admin/AdminOverview.vue'),
-        },
-        {
-          path: 'analytics',
-          name: 'admin-analytics',
-          component: () => import('../views/admin/AdminAnalytics.vue'),
-          meta: { requiresPermission: 'stats.view' },
-        },
-        {
-          path: 'users',
-          name: 'admin-users',
-          component: () => import('../views/admin/AdminUsers.vue'),
-          meta: { requiresPermission: 'users.view' },
-        },
-        {
-          path: 'properties',
-          name: 'admin-properties',
-          component: () => import('../views/admin/AdminProperties.vue'),
-          meta: { requiresPermission: 'properties.view' },
-        },
-        {
-          path: 'claims',
-          name: 'admin-claims',
-          component: () => import('../views/admin/AdminClaims.vue'),
-          meta: { requiresPermission: 'properties.approve' },
-        },
-        {
-          path: 'roles',
-          name: 'admin-roles',
-          component: () => import('../views/admin/AdminRoles.vue'),
-          meta: { requiresPermission: 'roles.view' },
-        },
-      ],
+    },
+    {
+      path: '/admin/analytics',
+      redirect: () => ({ path: '/dashboard', query: { section: 'analytics' } }),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/users',
+      redirect: () => ({ path: '/dashboard', query: { section: 'users' } }),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/properties',
+      redirect: () => ({ path: '/dashboard', query: { section: 'properties' } }),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/claims',
+      redirect: () => ({ path: '/dashboard', query: { section: 'claims' } }),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/roles',
+      redirect: () => ({ path: '/dashboard', query: { section: 'roles' } }),
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/:pathMatch(.*)*',
