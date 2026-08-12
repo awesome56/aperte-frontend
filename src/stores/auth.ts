@@ -12,8 +12,11 @@ interface User {
   role?: string
 }
 
+const TOKEN_KEY = 'aperte_token'
+const REFRESH_KEY = 'aperte_refresh'
+
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string>(localStorage.getItem('aperte_token') || '')
+  const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')
   const user = ref<User | null>(null)
 
   const isAuthenticated = computed(() => Boolean(token.value))
@@ -21,11 +24,16 @@ export const useAuthStore = defineStore('auth', () => {
   // staff + admin can access the admin area
   const isStaff = computed(() => ['admin', 'staff'].includes(user.value?.role || ''))
 
+  function setTokens(access: string, refresh?: string) {
+    token.value = access
+    localStorage.setItem(TOKEN_KEY, access)
+    if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
+  }
+
   async function login(email: string, password: string) {
     const res = await authApi.login({ email, password })
     if (res.data?.user?.access) {
-      token.value = res.data.user.access
-      localStorage.setItem('aperte_token', res.data.user.access)
+      setTokens(res.data.user.access, res.data.user.refresh)
       user.value = {
         id: res.data.user.id,
         username: res.data.user.username,
@@ -37,6 +45,13 @@ export const useAuthStore = defineStore('auth', () => {
       }
     }
     return res.data
+  }
+
+  // keep the pinia token in sync when the axios interceptor refreshes it
+  if (typeof window !== 'undefined') {
+    window.addEventListener('aperte-token-refreshed', ((e: CustomEvent<string>) => {
+      token.value = e.detail
+    }) as EventListener)
   }
 
   async function register(data: Record<string, unknown>) {
@@ -56,8 +71,9 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     token.value = ''
     user.value = null
-    localStorage.removeItem('aperte_token')
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_KEY)
   }
 
-  return { token, user, isAuthenticated, isAdmin, isStaff, login, register, fetchMe, logout }
+  return { token, user, isAuthenticated, isAdmin, isStaff, login, register, fetchMe, logout, setTokens }
 })
