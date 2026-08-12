@@ -201,7 +201,11 @@ export const propertyApi = {
   deleteImage: (id: number) => api.delete(`/properties/images/${id}`),
   deleteVideo: (id: number) => api.delete(`/properties/videos/${id}`),
   setDp: (id: number) => api.put(`/properties/images/${id}/dp`),
-  claim: (id: number) => api.post<{ message: string; claim: { id: number; status: string } }>(`/properties/${id}/claim`),
+  claim: (id: number) =>
+    api.post<{ message: string; claim: { id: number; status: string }; verification_email?: string }>(`/properties/${id}/claim`),
+  claimVerify: (id: number, code: string) =>
+    api.post<{ message: string; claim: { id: number; status: string } }>(`/properties/${id}/claim/verify`, { code }),
+  claimResend: (id: number) => api.get<{ message: string }>(`/properties/${id}/claim/resend`),
 }
 
 export const bookingApi = {

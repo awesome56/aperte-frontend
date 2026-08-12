@@ -133,12 +133,16 @@ function callOwner(type: 'audio' | 'video') {
 }
 */
 
-// ---- claim property (admin-listed listings) ----
+// ---- claim property (admin-listed listings, Google-style verification) ----
 
 const claimStatus = ref<string | null>(null)
 const claimMsg = ref('')
 const claimErr = ref('')
 const claiming = ref(false)
+const verificationEmail = ref('')
+const verifyCode = ref('')
+const verifying = ref(false)
+const resending = ref(false)
 
 async function claimProperty() {
   if (!property.value) return
@@ -152,6 +156,7 @@ async function claimProperty() {
   try {
     const res = await propertyApi.claim(property.value.id)
     claimStatus.value = res.data.claim.status
+    verificationEmail.value = res.data.verification_email || ''
     claimMsg.value = res.data.message
     import('@/analytics/tracker').then((m) =>
       m.default.trackEvent('property_claim', 'conversion', { property_id: property.value!.id }),
@@ -160,6 +165,39 @@ async function claimProperty() {
     claimErr.value = e.response?.data?.error || 'Failed to claim property.'
   } finally {
     claiming.value = false
+  }
+}
+
+async function verifyClaim() {
+  if (!property.value || !verifyCode.value.trim()) return
+  verifying.value = true
+  claimMsg.value = ''
+  claimErr.value = ''
+  try {
+    const res = await propertyApi.claimVerify(property.value.id, verifyCode.value.trim())
+    claimStatus.value = res.data.claim.status
+    claimMsg.value = res.data.message
+    import('@/analytics/tracker').then((m) =>
+      m.default.trackEvent('property_claim_verified', 'conversion', { property_id: property.value!.id }),
+    )
+  } catch (e: any) {
+    claimErr.value = e.response?.data?.error || 'Verification failed.'
+  } finally {
+    verifying.value = false
+  }
+}
+
+async function resendClaimCode() {
+  if (!property.value) return
+  resending.value = true
+  claimErr.value = ''
+  try {
+    const res = await propertyApi.claimResend(property.value.id)
+    claimMsg.value = res.data.message
+  } catch (e: any) {
+    claimErr.value = e.response?.data?.error || 'Failed to resend code.'
+  } finally {
+    resending.value = false
   }
 }
 
@@ -295,16 +333,40 @@ onMounted(async () => {
           </div>
           -->
 
-          <!-- Claim admin-listed property -->
+          <!-- Claim admin-listed property (Google-style verification flow) -->
           <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
             <template v-if="!claimStatus">
-              <p class="claim-note">This listing was posted by the site admin and is available to be claimed.</p>
+              <p class="claim-note">This listing was posted by the site admin and is available to be claimed. Claiming verifies your ownership with a code sent by email.</p>
               <button class="btn btn-primary btn-block" :disabled="claiming" @click="claimProperty">
                 {{ claiming ? 'Submitting…' : 'Claim This Property' }}
               </button>
             </template>
+
+            <!-- Step 1: enter the emailed verification code -->
+            <template v-else-if="claimStatus === 'pending_verification'">
+              <p class="claim-note">
+                We sent a 6-digit verification code to <strong>{{ verificationEmail || 'your email' }}</strong>.
+                Enter it below to confirm ownership.
+              </p>
+              <div class="verify-row">
+                <input
+                  v-model="verifyCode"
+                  class="verify-input"
+                  placeholder="6-digit code"
+                  maxlength="6"
+                  :disabled="verifying"
+                />
+                <button class="btn btn-primary" :disabled="verifying || verifyCode.trim().length < 6" @click="verifyClaim">
+                  {{ verifying ? 'Verifying…' : 'Verify' }}
+                </button>
+              </div>
+              <button class="resend-link" :disabled="resending" @click="resendClaimCode">
+                {{ resending ? 'Sending…' : 'Resend code' }}
+              </button>
+            </template>
+
             <p v-else-if="claimStatus === 'pending'" class="claim-status pending">
-              Your claim is pending review by the admin.
+              Verification complete — your claim is pending review by the admin.
             </p>
             <p v-else-if="claimStatus === 'approved'" class="claim-status approved">
               You own this property.
@@ -631,6 +693,38 @@ onMounted(async () => {
 
 .claim-status.rejected {
   color: #d0342c;
+}
+
+.verify-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.verify-input {
+  flex: 1;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 1rem;
+  letter-spacing: 4px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.resend-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.resend-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .price {
