@@ -20,13 +20,13 @@ const filtered = computed(() => {
   return latest.value.filter(p => p.purpose === listTab.value.toLowerCase())
 })
 
-const categories = ref([
-  { key: 'property', label: 'Apartments & Houses', img: '/images/area1.jpg' },
-  { key: 'land', label: 'Land', img: '/images/area2.jpg' },
-  { key: 'hotel', label: 'Hotels', img: '/images/area3.jpg' },
-  { key: 'shortlet', label: 'Shortlets', img: '/images/area1.jpg' },
-  { key: 'hall', label: 'Halls', img: '/images/area2.jpg' },
-  { key: 'event_center', label: 'Event Centers', img: '/images/area3.jpg' },
+const categories = ref<{ key: string; label: string; img: string; count: number }[]>([
+  { key: 'property', label: 'Apartments & Houses', img: '/images/area1.jpg', count: 0 },
+  { key: 'land', label: 'Land', img: '/images/area2.jpg', count: 0 },
+  { key: 'hotel', label: 'Hotels', img: '/images/area3.jpg', count: 0 },
+  { key: 'shortlet', label: 'Shortlets', img: '/images/area1.jpg', count: 0 },
+  { key: 'hall', label: 'Halls', img: '/images/area2.jpg', count: 0 },
+  { key: 'event_center', label: 'Event Centers', img: '/images/area3.jpg', count: 0 },
 ])
 
 const services = [
@@ -62,7 +62,7 @@ onMounted(async () => {
     ])
     latest.value = latestRes.data.data
     totalListings.value = latestRes.data.meta.total_count
-    categories.value = categories.value.map((c, i) => ({ ...c, count: catRes[i].data.meta.total_count }))
+    categories.value = categories.value.map((c, i) => ({ ...c, count: catRes[i]?.data.meta.total_count ?? 0 }))
   } catch {
     latest.value = []
   } finally {
