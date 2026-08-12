@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppNavbar from '@/components/AppNavbar.vue'
 import AppFooter from '@/components/AppFooter.vue'
+import BottomNavigation from '@/components/BottomNavigation.vue'
 // calls temporarily disabled — see src/calls/callManager.ts
 // import CallOverlay from '@/components/CallOverlay.vue'
 import { startStream, stopStream, ensureStream } from '@/messaging/stream'
@@ -40,6 +41,7 @@ onUnmounted(() => stopStream())
       <RouterView />
     </main>
     <AppFooter v-if="!isAdminArea" />
+    <BottomNavigation />
     <!-- calls temporarily disabled
     <CallOverlay />
     -->
@@ -55,5 +57,11 @@ onUnmounted(() => stopStream())
 
 .main {
   flex: 1;
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding-bottom: 64px;
+  }
 }
 </style>

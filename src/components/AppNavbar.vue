@@ -81,11 +81,13 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
     <div class="container nav-inner">
       <nav class="nav-links">
         <RouterLink to="/" exact-active-class="active">Home</RouterLink>
-        <a href="/#about">About</a>
-        <RouterLink to="/listings" active-class="active">Listings</RouterLink>
-        <RouterLink to="/browse-requests" active-class="active">Requests</RouterLink>
-        <a href="/#services">Services</a>
-        <a href="/listings">Blogs</a>
+        <RouterLink to="/listings?purpose=sale" active-class="active">Buy</RouterLink>
+        <RouterLink to="/listings?purpose=rent" active-class="active">Rent</RouterLink>
+        <RouterLink to="/listings?category=shortlet" active-class="active">Shortlets</RouterLink>
+        <RouterLink to="/listings?category=hotel" active-class="active">Hotels</RouterLink>
+        <RouterLink to="/listings?category=land" active-class="active">Land</RouterLink>
+        <RouterLink to="/listings?category=event_center" active-class="active">Venues</RouterLink>
+        <RouterLink to="/browse-requests" active-class="active">Property Requests</RouterLink>
       </nav>
 
       <RouterLink to="/" class="brand">Aperte</RouterLink>
@@ -119,11 +121,13 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
       <div v-if="menuOpen" class="mobile-menu-backdrop" @click="closeMenu"></div>
       <div v-if="menuOpen" class="mobile-menu">
         <RouterLink to="/" @click="closeMenu">Home</RouterLink>
-        <a href="/#about" @click="closeMenu">About</a>
-        <RouterLink to="/listings" @click="closeMenu">Listings</RouterLink>
-        <RouterLink to="/browse-requests" @click="closeMenu">Requests</RouterLink>
-        <a href="/#services" @click="closeMenu">Services</a>
-        <a href="/listings" @click="closeMenu">Blogs</a>
+        <RouterLink to="/listings?purpose=sale" @click="closeMenu">Buy</RouterLink>
+        <RouterLink to="/listings?purpose=rent" @click="closeMenu">Rent</RouterLink>
+        <RouterLink to="/listings?category=shortlet" @click="closeMenu">Shortlets</RouterLink>
+        <RouterLink to="/listings?category=hotel" @click="closeMenu">Hotels</RouterLink>
+        <RouterLink to="/listings?category=land" @click="closeMenu">Land</RouterLink>
+        <RouterLink to="/listings?category=event_center" @click="closeMenu">Venues</RouterLink>
+        <RouterLink to="/browse-requests" @click="closeMenu">Property Requests</RouterLink>
 
         <template v-if="auth.isAuthenticated">
           <div class="menu-sep"></div>
