@@ -67,11 +67,11 @@ watch(() => router.currentRoute.value.fullPath, closeMenu)
   <!-- Top utility bar -->
   <div class="topbar">
     <div class="container topbar-inner">
-      <span class="tb-left">Rezilla, 18 Grattan St, Brooklyn</span>
+      <span class="tb-left">Lagos, Nigeria</span>
       <div class="tb-right">
-        <span>+1 206-214-2298</span>
+        <span>Mon – Sat: 9:00 AM – 6:00 PM</span>
         <span class="dot">·</span>
-        <span>support@rezilla.com</span>
+        <span>support@awesometech.com.ng</span>
       </div>
     </div>
   </div>
