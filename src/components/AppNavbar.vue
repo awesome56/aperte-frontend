@@ -11,8 +11,8 @@ const unread = ref(0)
 async function refreshUnread() {
   if (!auth.isAuthenticated) return
   try {
-    const { messageApi } = await import('@/api')
-    const res = await messageApi.unreadCount()
+    const { authApi } = await import('@/api')
+    const res = await authApi.heartbeat()
     unread.value = res.data.unread_count
   } catch {
     // ignore

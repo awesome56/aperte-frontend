@@ -14,7 +14,7 @@ const error = ref('')
 
 // active thread
 const activeUserId = ref<number | null>(null)
-const threadUser = ref<{ id: number; username: string; full_name: string; profile_picture: string } | null>(null)
+const threadUser = ref<{ id: number; username: string; full_name: string; profile_picture: string; online: boolean; last_seen: string | null } | null>(null)
 const messages = ref<Message[]>([])
 const threadLoading = ref(false)
 const draft = ref('')
@@ -48,6 +48,18 @@ function fmtDate(v: string) {
   const today = new Date()
   const sameDay = d.toDateString() === today.toDateString()
   return sameDay ? fmtTime(v) : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function lastSeenText(lastSeen: string | null) {
+  if (!lastSeen) return 'offline'
+  const diff = Date.now() - new Date(lastSeen).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 }
 
 async function loadConversations() {
@@ -193,7 +205,10 @@ onUnmounted(() => {
           <div class="avatar">{{ initialsOf(c.user.full_name || c.user.username) }}</div>
           <div class="convo-main">
             <div class="convo-top">
-              <strong>{{ c.user.full_name || c.user.username }}</strong>
+              <strong class="with-presence">
+                {{ c.user.full_name || c.user.username }}
+                <i class="presence" :class="{ on: c.user.online }" :title="c.user.online ? 'Online' : `Last seen ${lastSeenText(c.user.last_seen)}`"></i>
+              </strong>
               <span class="time">{{ fmtDate(c.last_activity) }}</span>
             </div>
             <div class="convo-preview">
@@ -201,7 +216,7 @@ onUnmounted(() => {
               <span v-if="c.unread_count" class="badge">{{ c.unread_count }}</span>
             </div>
             <div v-if="c.last_message.property || c.last_message.request" class="convo-quote">
-              📎 {{ (c.last_message.property || c.last_message.request)?.title }}
+              <span class="quote-ico">❝</span> {{ (c.last_message.property || c.last_message.request)?.title }}
             </div>
           </div>
         </div>
@@ -213,8 +228,14 @@ onUnmounted(() => {
           <header class="chat-head">
             <div class="avatar">{{ initialsOf(threadUser.full_name || threadUser.username) }}</div>
             <div>
-              <strong>{{ threadUser.full_name || threadUser.username }}</strong>
-              <span class="sub">@{{ threadUser.username }}</span>
+              <strong class="with-presence">
+                {{ threadUser.full_name || threadUser.username }}
+                <i class="presence" :class="{ on: threadUser.online }"></i>
+              </strong>
+              <span class="sub">
+                @{{ threadUser.username }}
+                · {{ threadUser.online ? 'Online' : `Last seen ${lastSeenText(threadUser.last_seen)}` }}
+              </span>
             </div>
           </header>
 
@@ -365,6 +386,26 @@ onUnmounted(() => {
 .convo-top strong {
   font-size: 0.92rem;
   color: var(--color-dark);
+}
+
+.with-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.presence {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #c4c9d0;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.presence.on {
+  background: #2ecc71;
+  box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.18);
 }
 
 .time {

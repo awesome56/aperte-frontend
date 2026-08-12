@@ -150,6 +150,7 @@ export const authApi = {
   reset: (email: string, code: string, new_password: string) => api.post(`/auth/resetpassword/${email}`, { code, new_password }),
   changePassword: (old_password: string, new_password: string, comfirm_password: string) =>
     api.post('/auth/changepassword', { old_password, new_password, comfirm_password }),
+  heartbeat: () => api.post<{ unread_count: number; last_seen: string }>('/auth/heartbeat'),
 }
 
 export const favoriteApi = {
@@ -275,7 +276,7 @@ export interface Message extends MessageQuote {
 }
 
 export interface Conversation {
-  user: { id: number; username: string; full_name: string; profile_picture: string }
+  user: { id: number; username: string; full_name: string; profile_picture: string; online: boolean; last_seen: string | null }
   last_message: Message
   unread_count: number
   last_activity: string
@@ -283,7 +284,7 @@ export interface Conversation {
 
 export interface MessageThread {
   messages: Message[]
-  user: { id: number; username: string; full_name: string; profile_picture: string }
+  user: { id: number; username: string; full_name: string; profile_picture: string; online: boolean; last_seen: string | null }
   meta: Paginated<Message>['meta']
 }
 
