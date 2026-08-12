@@ -42,9 +42,6 @@ onMounted(async () => {
 
 <template>
   <div class="myanalytics">
-    <h1 class="page-title">My Analytics</h1>
-    <p class="sub">How your listings and requests are performing.</p>
-
     <div v-if="loading" class="loading">Loading…</div>
     <div v-else-if="err" class="loading">{{ err }}</div>
 
