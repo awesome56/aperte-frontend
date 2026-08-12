@@ -4,6 +4,8 @@
 // - Captures page views (incl. SPA route changes), time on page, performance
 //   metrics (TTFB/DOMContentLoaded/load/FCP/LCP/CLS), JS errors and events
 
+import { getVisitorId, getSessionId } from './ids'
+
 const VISITOR_KEY = 'aperte_visitor_id'
 const SESSION_KEY = 'aperte_session_id'
 const UTM_KEY = 'aperte_utm'
@@ -35,24 +37,6 @@ interface TrackEvent {
   cls?: number
   js_errors?: number
   failed_requests?: number
-}
-
-function getVisitorId(): string {
-  let id = localStorage.getItem(VISITOR_KEY)
-  if (!id) {
-    id = 'v_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
-    localStorage.setItem(VISITOR_KEY, id)
-  }
-  return id
-}
-
-function getSessionId(): string {
-  let id = sessionStorage.getItem(SESSION_KEY)
-  if (!id) {
-    id = 's_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
-    sessionStorage.setItem(SESSION_KEY, id)
-  }
-  return id
 }
 
 function getUtm(): Record<string, string> {
