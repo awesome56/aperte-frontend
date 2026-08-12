@@ -10,7 +10,7 @@ const auth = useAuthStore()
 const hidden = computed(() => route.path.startsWith('/admin') || route.path === '/login' || route.path === '/register')
 
 const items = computed<{ to: string; label: string; icon: string; badge?: number }[]>(() => {
-  const base = [
+  const base: { to: string; label: string; icon: string; badge?: number }[] = [
     { to: '/', label: 'Home', icon: 'M12 3 2 12h3v8h6v-6h2v6h6v-8h3L12 3z' },
     { to: '/listings', label: 'Explore', icon: 'M10 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm9.3 13.3-4.2-4.2a7.4 7.4 0 1 0-1.4 1.4l4.2 4.2a1 1 0 0 0 1.4-1.4z' },
   ]
