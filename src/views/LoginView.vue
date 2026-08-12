@@ -20,6 +20,7 @@ async function submit() {
   try {
     const data = await auth.login(email.value, password.value)
     if (auth.isAuthenticated) {
+      import('@/analytics/tracker').then((m) => m.default.trackEvent('login', 'conversion'))
       const redirect = (route.query.redirect as string) || '/dashboard'
       router.push(redirect)
     } else {

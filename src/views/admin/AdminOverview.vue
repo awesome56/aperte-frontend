@@ -1,22 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { adminApi, type AdminStats, type AdminAnalytics, formatPrice } from '@/api'
+import { adminApi, type AdminStats } from '@/api'
 
 const stats = ref<AdminStats | null>(null)
-const analytics = ref<AdminAnalytics | null>(null)
 const loading = ref(true)
 const err = ref('')
 
-function maxDayCount() {
-  if (!analytics.value?.views_by_day.length) return 1
-  return Math.max(...analytics.value.views_by_day.map((d) => d.count), 1)
-}
-
 onMounted(async () => {
   try {
-    const [s, a] = await Promise.all([adminApi.stats(), adminApi.analytics()])
-    stats.value = s.data
-    analytics.value = a.data
+    const r = await adminApi.stats()
+    stats.value = r.data
   } catch (e: any) {
     err.value = e.response?.data?.error || 'Failed to load stats.'
   } finally {
@@ -91,101 +84,11 @@ onMounted(async () => {
       </div>
 
       <!-- Analytics -->
-      <template v-if="analytics">
-        <h2 class="analytics-title">Site Analytics</h2>
-
-        <div class="stat-grid">
-          <div class="stat-card" style="background:#eefaf1">
-            <span class="stat-label">Page Views (all time)</span>
-            <span class="stat-value">{{ analytics.total_page_views }}</span>
-            <span class="stat-change up">{{ analytics.views_7d }} in last 7 days</span>
-          </div>
-          <div class="stat-card" style="background:#f0f4ff">
-            <span class="stat-label">Unique Visitors</span>
-            <span class="stat-value">{{ analytics.unique_visitors }}</span>
-            <span class="stat-change up">{{ analytics.new_visitors_7d }} new in 7 days</span>
-          </div>
-          <div class="stat-card" style="background:#eefaf1">
-            <span class="stat-label">Property Views</span>
-            <span class="stat-value">{{ analytics.total_property_views }}</span>
-            <span class="stat-change up">{{ analytics.views_today }} today</span>
-          </div>
-          <div class="stat-card" style="background:#f0f4ff">
-            <span class="stat-label">Favorites Saved</span>
-            <span class="stat-value">{{ analytics.total_favorites }}</span>
-            <span class="stat-change up">across all users</span>
-          </div>
-        </div>
-
-        <div class="blocks">
-          <div class="block block-wide">
-            <h3>Most Viewed Properties</h3>
-            <div v-if="analytics.top_properties.length" class="rank-list">
-              <RouterLink
-                v-for="(p, i) in analytics.top_properties.slice(0, 5)"
-                :key="p.id"
-                :to="`/properties/${p.id}`"
-                class="rank-row"
-              >
-                <span class="rank-num">{{ i + 1 }}</span>
-                <img v-if="p.dp" :src="p.dp" alt="" class="rank-thumb" />
-                <div class="rank-info">
-                  <strong>{{ p.title }}</strong>
-                  <span class="rank-meta">{{ p.city }}, {{ p.state }} · {{ formatPrice(p.price, p.currency) }}</span>
-                </div>
-                <span class="rank-count">{{ p.views }} views</span>
-              </RouterLink>
-            </div>
-            <p v-else class="rank-empty">No property views yet.</p>
-          </div>
-
-          <div class="block">
-            <h3>Most Favorited</h3>
-            <div v-if="analytics.favorite_properties.length" class="rank-list">
-              <RouterLink
-                v-for="(p, i) in analytics.favorite_properties.slice(0, 5)"
-                :key="p.id"
-                :to="`/properties/${p.id}`"
-                class="rank-row"
-              >
-                <span class="rank-num">{{ i + 1 }}</span>
-                <img v-if="p.dp" :src="p.dp" alt="" class="rank-thumb" />
-                <div class="rank-info">
-                  <strong>{{ p.title }}</strong>
-                  <span class="rank-meta">{{ formatPrice(p.price, p.currency) }}</span>
-                </div>
-                <span class="rank-count">{{ p.favorites_count }} ♥</span>
-              </RouterLink>
-            </div>
-            <p v-else class="rank-empty">No favorites yet.</p>
-          </div>
-        </div>
-
-        <div class="blocks">
-          <div class="block block-wide">
-            <h3>Views — Last 14 Days</h3>
-            <div class="day-chart">
-              <div v-for="d in analytics.views_by_day" :key="d.date" class="day-col">
-                <div class="bar-wrap">
-                  <div class="bar" :style="{ height: (d.count / maxDayCount() * 100) + '%' }" :title="`${d.date}: ${d.count}`"></div>
-                </div>
-                <span class="day-label">{{ d.date.slice(5) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="block">
-            <h3>Top Pages</h3>
-            <div v-if="analytics.top_pages.length" class="page-list">
-              <div v-for="p in analytics.top_pages" :key="p.path" class="page-row">
-                <span class="page-path">{{ p.path }}</span>
-                <span class="page-count">{{ p.count }}</span>
-              </div>
-            </div>
-            <p v-else class="rank-empty">No page views yet.</p>
-          </div>
-        </div>
-      </template>
+      <div class="analytics-banner">
+        <h2>Site Analytics</h2>
+        <p>Visitors, sessions, page views, property performance, traffic sources, devices and real-time activity.</p>
+        <RouterLink to="/admin/analytics" class="action-link">Open Analytics Dashboard →</RouterLink>
+      </div>
     </template>
   </div>
 </template>
@@ -306,6 +209,25 @@ onMounted(async () => {
   font-size: 1.15rem;
   font-weight: 600;
   margin: 30px 0 16px;
+}
+
+.analytics-banner {
+  background: linear-gradient(120deg, #eef4ff, #e6f1fd);
+  border-radius: 14px;
+  padding: 24px;
+  margin-top: 30px;
+}
+
+.analytics-banner h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.analytics-banner p {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 14px;
 }
 
 .rank-list {

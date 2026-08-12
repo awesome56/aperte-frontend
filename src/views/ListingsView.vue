@@ -46,6 +46,16 @@ async function load() {
 function apply() {
   page.value = 1
   load()
+  const term = filters.city || filters.category || ''
+  import('@/analytics/tracker').then((m) =>
+    m.default.trackEvent('search', 'search', {
+      term: term || 'all listings',
+      category: filters.category,
+      purpose: filters.purpose,
+      city: filters.city,
+      results_meta: meta.value.total_count,
+    }),
+  )
 }
 
 function reset() {

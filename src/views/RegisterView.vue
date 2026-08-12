@@ -32,6 +32,7 @@ async function submit() {
     }
     if (form.value.phone_number) payload.phone_number = Number(form.value.phone_number)
     const res = await auth.register(payload)
+    import('@/analytics/tracker').then((m) => m.default.trackEvent('register', 'conversion', { email: form.value.email }))
     msg.value = res.data?.msg || 'Registered! Check your email for a verification code.'
   } catch (e: any) {
     error.value = e.response?.data?.error || e.response?.data?.msg || 'Registration failed.'

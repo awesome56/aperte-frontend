@@ -100,6 +100,9 @@ async function toggleFavorite() {
     await favoriteApi.toggle(property.value!.id)
     favorited.value = !favorited.value
     favoritesCount.value += favorited.value ? 1 : -1
+    import('@/analytics/tracker').then((m) =>
+      m.default.trackEvent(favorited.value ? 'favorite_add' : 'favorite_remove', 'property', { property_id: property.value!.id }),
+    )
   } catch (e: any) {
     bookingErr.value = e.response?.data?.error || 'Failed to update favorite.'
   }
@@ -125,6 +128,9 @@ async function submitBooking() {
       payload.check_out = bookingForm.value.check_out
     }
     const res = await bookingApi.create(property.value!.id, payload)
+    import('@/analytics/tracker').then((m) =>
+      m.default.trackEvent('booking', 'conversion', { property_id: property.value!.id, total: res.data.total }),
+    )
     bookingMsg.value = `Booking requested! Total: ${formatPrice(res.data.total, property.value?.currency)} (status: ${res.data.status}).`
     bookingOpen.value = false
   } catch (e: any) {

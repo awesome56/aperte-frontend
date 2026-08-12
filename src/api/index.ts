@@ -136,6 +136,7 @@ export const favoriteApi = {
 }
 
 export const trackingApi = {
+  batch: (events: Record<string, unknown>[]) => api.post('/tracking/batch', { events }),
   pageview: (path: string, propertyId?: number | null) =>
     api.post('/tracking/pageview', {
       path,
@@ -259,6 +260,117 @@ export interface AdminAnalytics {
   views_by_day: { date: string; count: number }[]
 }
 
+export interface AnalyticsKpis {
+  page_views: number
+  unique_visitors: number
+  new_visitors: number
+  returning_visitors: number
+  sessions: number
+  total_sessions: number
+  bounce_rate: number
+  avg_session_duration: number
+  avg_time_on_page: number
+  engagement_rate: number
+  events: number
+  conversions: number
+}
+
+export interface AnalyticsOverview {
+  range: { start: string; end: string }
+  current: AnalyticsKpis
+  previous: AnalyticsKpis
+  change: Partial<Record<keyof AnalyticsKpis, number>>
+  over_time: { date: string; views: number; visitors: number; sessions: number }[]
+  sources: { source: string; visitors: number; sessions: number; views: number; bounce_rate: number }[]
+  utm: { source: string; medium: string; campaign: string; visitors: number; views: number }[]
+  top_properties: {
+    id: number
+    title: string
+    views: number
+    visitors: number
+    sessions: number
+    avg_time_on_page: number
+    bounce_rate: number
+    dp: string
+  }[]
+}
+
+export interface AnalyticsPage {
+  path: string
+  title: string
+  views: number
+  visitors: number
+  sessions: number
+  avg_time_on_page: number
+  landings: number
+  exits: number
+  exit_rate: number
+  bounce_rate: number
+}
+
+export interface AnalyticsProperty {
+  id: number
+  title: string
+  views: number
+  visitors: number
+  sessions: number
+  avg_time_on_page: number
+  bounce_rate: number
+  dp: string
+}
+
+export interface AnalyticsPropertyDetail extends AnalyticsProperty {
+  sources: { source: string; visitors: number }[]
+  devices: { device: string; visitors: number }[]
+  views_over_time: { date: string; views: number }[]
+}
+
+export interface AnalyticsContent {
+  pages: AnalyticsPage[]
+  least_visited: AnalyticsPage[]
+  landing_pages: { path: string; sessions: number; avg_duration: number }[]
+  exit_pages: { path: string; count: number }[]
+  properties: AnalyticsProperty[]
+}
+
+export interface AnalyticsAudience {
+  devices: { key: string; visitors: number; views: number }[]
+  browsers: { key: string; visitors: number; views: number }[]
+  os: { key: string; visitors: number; views: number }[]
+  countries: { key: string; visitors: number; views: number }[]
+  screen_sizes: { key: string; visitors: number; views: number }[]
+}
+
+export interface AnalyticsPerformance {
+  averages: {
+    ttfb: number | null
+    dom_loaded: number | null
+    load_time: number | null
+    fcp: number | null
+    lcp: number | null
+    cls: number | null
+    js_errors: number
+    failed_requests: number
+    samples: number
+  }
+  slowest_pages: { path: string; load_time: number | null; lcp: number | null; ttfb: number | null; cls: number | null; samples: number }[]
+  error_count: number
+}
+
+export interface AnalyticsEvents {
+  events: { name: string; category: string; count: number; visitors: number }[]
+  search_terms: { term: string; count: number }[]
+}
+
+export interface AnalyticsRealtime {
+  active_sessions: number
+  active_visitors: number
+  pages: { path: string; active_visitors: number }[]
+  recent: { path: string; event_type: string; device_type: string; source_type: string; country: string; created_at: string }[]
+}
+
+export type AnalyticsRange = { start: string; end: string }
+
 export interface AdminUser {
   id: number
   username: string
@@ -307,6 +419,18 @@ export interface Role {
 export const adminApi = {
   stats: () => api.get<AdminStats>('/admin/stats'),
   analytics: () => api.get<AdminAnalytics>('/admin/analytics'),
+  analyticsOverview: (params: AnalyticsRange) => api.get<AnalyticsOverview>('/admin/analytics/overview', { params }),
+  analyticsTraffic: (params: AnalyticsRange & { group?: string }) => api.get('/admin/analytics/traffic', { params }),
+  analyticsContent: (params: AnalyticsRange) => api.get<AnalyticsContent>('/admin/analytics/content', { params }),
+  analyticsProperties: (params: AnalyticsRange & { property_id?: number }) =>
+    api.get<{ properties?: AnalyticsProperty[] } | AnalyticsPropertyDetail>('/admin/analytics/properties', { params }),
+  analyticsAudience: (params: AnalyticsRange) => api.get<AnalyticsAudience>('/admin/analytics/audience', { params }),
+  analyticsPerformance: (params: AnalyticsRange) => api.get<AnalyticsPerformance>('/admin/analytics/performance', { params }),
+  analyticsEvents: (params: AnalyticsRange) => api.get<AnalyticsEvents>('/admin/analytics/events', { params }),
+  analyticsRealtime: () => api.get<AnalyticsRealtime>('/admin/analytics/realtime'),
+  analyticsExport: (params: AnalyticsRange & { format?: string }) =>
+    api.get('/admin/analytics/export', { params, responseType: 'blob' }),
+  analyticsPrune: (days: number) => api.post(`/admin/analytics/prune?days=${days}`),
   users: (params: Record<string, unknown>) => api.get<Paginated<AdminUser>>('/admin/users', { params }),
   setRole: (id: number, role: string) => api.put<AdminUser>(`/admin/users/${id}/role`, { role }),
   deleteUser: (id: number) => api.delete(`/admin/users/${id}`),

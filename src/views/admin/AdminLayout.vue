@@ -25,6 +25,9 @@ function logout() {
         <RouterLink to="/admin" class="nav-item" active-class="active" exact-active-class="active">
           <span class="dot" style="background:#0a84ff"></span> Overview
         </RouterLink>
+        <RouterLink to="/admin/analytics" class="nav-item" active-class="active">
+          <span class="dot" style="background:#ff9f0a"></span> Analytics
+        </RouterLink>
 
         <p class="nav-label">Management</p>
         <RouterLink to="/admin/users" class="nav-item" active-class="active">

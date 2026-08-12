@@ -67,6 +67,12 @@ const router = createRouter({
           component: () => import('../views/admin/AdminOverview.vue'),
         },
         {
+          path: 'analytics',
+          name: 'admin-analytics',
+          component: () => import('../views/admin/AdminAnalytics.vue'),
+          meta: { requiresPermission: 'stats.view' },
+        },
+        {
           path: 'users',
           name: 'admin-users',
           component: () => import('../views/admin/AdminUsers.vue'),
@@ -115,13 +121,13 @@ router.beforeEach(async (to) => {
   }
 })
 
-// Fire-and-forget page view tracking for analytics.
+// Fire-and-forget page view tracking for analytics (SPA route changes included).
 router.afterEach((to) => {
   if (to.path === '/favicon.ico') return
   const propMatch = to.path.match(/^\/properties\/(\d+)/)
   const propertyId = propMatch ? Number(propMatch[1]) : null
-  import('@/api')
-    .then((m) => m.trackingApi.pageview(to.fullPath, propertyId))
+  import('@/analytics/tracker')
+    .then((m) => m.default.pageview(to.fullPath, undefined, propertyId))
     .catch(() => {})
 })
 
