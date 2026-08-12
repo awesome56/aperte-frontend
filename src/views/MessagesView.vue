@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { messageApi, type Conversation, type Message } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { startStream, stopStream, unreadCount, on as onStreamEvent } from '@/messaging/stream'
 
 const route = useRoute()
 const router = useRouter()
@@ -153,6 +154,8 @@ function openConvo(c: Conversation) {
   openThread(c.user.id)
 }
 
+const stopFns: (() => void)[] = []
+
 // --- init from query params ---
 onMounted(async () => {
   const q = route.query
@@ -172,6 +175,58 @@ onMounted(async () => {
       await openThread(first.user.id)
     }
   }
+
+  // ---- real-time SSE wiring ----
+  startStream()
+
+  const offMessage = onStreamEvent('message', (p: any) => {
+    const m = p.message as Message
+    unreadCount.value = p.unread_count ?? unreadCount.value
+    // belongs to the open thread?
+    const uid2 = activeUserId.value
+    if (uid2 && (m.sender_id === uid2 || m.receiver_id === uid2)) {
+      if (!messages.value.some((x) => x.id === m.id)) {
+        messages.value.push(m)
+        if (isNearBottom()) scrollToBottom()
+      }
+      // mark incoming as read + refresh conversation previews
+      if (m.receiver_id === auth.user?.id) openThread(uid2, true)
+    }
+    loadConversations()
+  })
+
+  const offStatus = onStreamEvent('status', (p: any) => {
+    const msg = messages.value.find((x) => x.id === p.message_id)
+    if (msg) {
+      msg.delivered = p.delivered
+      msg.read = p.read
+    }
+  })
+
+  const offPresence = onStreamEvent('presence', (p: any) => {
+    if (threadUser.value && threadUser.value.id === p.user_id) {
+      threadUser.value.online = p.online
+      threadUser.value.last_seen = p.last_seen
+    }
+    const c = conversations.value.find((x) => x.user.id === p.user_id)
+    if (c) {
+      c.user.online = p.online
+      c.user.last_seen = p.last_seen
+    }
+  })
+
+  const offUnread = onStreamEvent('unread', (p: any) => {
+    unreadCount.value = p.unread_count
+  })
+
+  stopFns.push(offMessage, offStatus, offPresence, offUnread)
+})
+
+onUnmounted(() => {
+  stopFns.forEach((fn) => fn())
+  stopFns.length = 0
+  stopStream()
+  if (pollTimer != null) window.clearInterval(pollTimer)
 })
 
 watch(() => route.query, () => {
@@ -187,11 +242,11 @@ watch(() => route.query, () => {
 
 let pollTimer: number | null = null
 onMounted(() => {
+  // real-time updates via SSE; a slow reconcile poll is a safety net only
   pollTimer = window.setInterval(() => {
-    // silent refresh: no loading flash, chat stays visible
     loadConversations()
     if (activeUserId.value) openThread(activeUserId.value, true)
-  }, 10000)
+  }, 60000)
 })
 onUnmounted(() => {
   if (pollTimer != null) window.clearInterval(pollTimer)

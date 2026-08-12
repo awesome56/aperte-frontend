@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { unreadCount, on as onStreamEvent } from '@/messaging/stream'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -19,6 +20,14 @@ async function refreshUnread() {
   }
 }
 
+// instant badge updates from the SSE stream while it is connected
+const offUnread = onStreamEvent('unread', (p: any) => {
+  unread.value = p.unread_count
+})
+watch(unreadCount, (v) => {
+  unread.value = v
+})
+
 let unreadTimer: number | null = null
 onMounted(() => {
   refreshUnread()
@@ -26,6 +35,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   if (unreadTimer != null) window.clearInterval(unreadTimer)
+  offUnread()
 })
 
 const initials = computed(() => {
