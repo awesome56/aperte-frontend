@@ -279,13 +279,44 @@ function toggleVideo() {
 
 // ---------- SSE wiring ----------
 
+// Apply a call status change to the in-progress call (accept, end, decline…).
+// Used by both 'call' (initial sync) and 'call_update' events so a caller
+// whose stream reconnected after the callee hung up still gets cleared.
+function applyCallStatus(call: Call) {
+  if (!callState.value || call.id !== callState.value.id) return
+  if (call.status === 'active' && callPhase.value === 'outgoing') {
+    // callee accepted — become the caller side of the peer connection
+    stopRing()
+    clearRingTimer()
+    callState.value = call
+    getUserMedia(call.call_type).then((stream) => {
+      if (!stream) return
+      localStream.value = stream
+      callPhase.value = 'active'
+      setupPeer(call.id, true)
+    })
+  } else if (['ended', 'declined', 'missed'].includes(call.status)) {
+    stopRing()
+    clearRingTimer()
+    cleanupPeer()
+    resetUi()
+  }
+}
+
 function wireStream() {
   const offCall = onStreamEvent('call', (p: any) => {
     const call = p.call as Call
     const uid = me()
-    if (callState.value && call.id === callState.value.id) return
     // ignore calls for other users on shared devices
     if (call.caller?.id !== uid && call.callee?.id !== uid) return
+
+    // status sync for the call already on screen (e.g. stream reconnected
+    // after the callee declined/ended — otherwise the UI would stay stuck)
+    if (callState.value && call.id === callState.value.id) {
+      applyCallStatus(call)
+      return
+    }
+
     if (call.status !== 'ringing') return
     // a new call involving me — stop ringing the previous one
     stopRing()
@@ -304,23 +335,7 @@ function wireStream() {
       if (callPhase.value !== 'idle' && call.status !== 'active') resetUi()
       return
     }
-    if (call.status === 'active' && callPhase.value === 'outgoing') {
-      // callee accepted — become the caller side of the peer connection
-      stopRing()
-      clearRingTimer()
-      callState.value = call
-      getUserMedia(call.call_type).then((stream) => {
-        if (!stream) return
-        localStream.value = stream
-        callPhase.value = 'active'
-        setupPeer(call.id, true)
-      })
-    } else if (['ended', 'declined', 'missed'].includes(call.status)) {
-      stopRing()
-      clearRingTimer()
-      cleanupPeer()
-      resetUi()
-    }
+    applyCallStatus(call)
   })
 
   const offPresence = onStreamEvent('presence', (p: any) => {

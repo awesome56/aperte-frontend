@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { messageApi, type Conversation, type Message } from '@/api'
 import { useAuthStore } from '@/stores/auth'
-import { startStream, stopStream, unreadCount, on as onStreamEvent } from '@/messaging/stream'
+import { unreadCount, on as onStreamEvent } from '@/messaging/stream'
 import { callManager } from '@/calls/callManager'
 
 const route = useRoute()
@@ -178,7 +178,7 @@ onMounted(async () => {
   }
 
   // ---- real-time SSE wiring ----
-  startStream()
+  // (the stream itself is managed globally by App.vue — we only subscribe here)
 
   const offMessage = onStreamEvent('message', (p: any) => {
     const m = p.message as Message
@@ -226,7 +226,6 @@ onMounted(async () => {
 onUnmounted(() => {
   stopFns.forEach((fn) => fn())
   stopFns.length = 0
-  stopStream()
   if (pollTimer != null) window.clearInterval(pollTimer)
 })
 
