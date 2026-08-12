@@ -148,14 +148,18 @@ function onKeydown(e: KeyboardEvent) {
 // ---------- voice notes ----------
 
 const recording = ref(false)
+const previewingVoice = ref(false)
 const recordingSeconds = ref(0)
 const recordingBlob = ref<Blob | null>(null)
+const previewUrl = ref<string | null>(null)
+const previewPlaying = ref(false)
 const sendingVoice = ref(false)
 let mediaRecorder: MediaRecorder | null = null
 let mediaChunks: Blob[] = []
 let mediaStream: MediaStream | null = null
 let recordTimer: number | null = null
 let recordStartedAt = 0
+let recordedDuration = 0
 const voiceErrors = ref('')
 
 async function toggleRecord() {
@@ -163,7 +167,7 @@ async function toggleRecord() {
     stopRecord()
     return
   }
-  if (!activeUserId.value || sendingVoice.value) return
+  if (!activeUserId.value || sendingVoice.value || previewingVoice.value) return
   voiceErrors.value = ''
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -178,8 +182,15 @@ async function toggleRecord() {
       if (e.data.size) mediaChunks.push(e.data)
     }
     mediaRecorder.onstop = () => {
+      // do NOT auto-send — show a preview so the user can listen first
+      recordedDuration = Math.max(1, Math.round((Date.now() - recordStartedAt) / 1000))
       recordingBlob.value = new Blob(mediaChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
-      sendVoice()
+      if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+      previewUrl.value = URL.createObjectURL(recordingBlob.value)
+      previewingVoice.value = true
+      previewPlaying.value = false
+      mediaStream?.getTracks().forEach((t) => t.stop())
+      mediaStream = null
     }
     mediaRecorder.start()
     recordStartedAt = Date.now()
@@ -204,6 +215,30 @@ function stopRecord() {
   recording.value = false
 }
 
+function togglePreviewPlay() {
+  const el = document.getElementById('voice-preview') as HTMLAudioElement | null
+  if (!el) return
+  if (previewPlaying.value) {
+    el.pause()
+    previewPlaying.value = false
+  } else {
+    el.play().catch(() => (previewPlaying.value = false))
+    previewPlaying.value = true
+  }
+}
+
+function onPreviewEnded() {
+  previewPlaying.value = false
+}
+
+function discardVoice() {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = null
+  recordingBlob.value = null
+  previewingVoice.value = false
+  previewPlaying.value = false
+}
+
 async function sendVoice() {
   const blob = recordingBlob.value
   if (!blob || !activeUserId.value || sendingVoice.value) return
@@ -213,12 +248,12 @@ async function sendVoice() {
     const res = await messageApi.voice({
       file: blob,
       receiver_id: activeUserId.value,
-      voice_duration: Math.max(1, Math.round((Date.now() - recordStartedAt) / 1000)),
+      voice_duration: recordedDuration,
       property_id: quotePropertyId.value || undefined,
       request_id: quoteRequestId.value || undefined,
     })
     messages.value.push(res.data)
-    recordingBlob.value = null
+    discardVoice()
     scrollToBottom()
     await loadConversations()
     import('@/analytics/tracker').then((m) =>
@@ -228,8 +263,6 @@ async function sendVoice() {
     voiceErrors.value = e.response?.data?.error || 'Failed to send voice note.'
   } finally {
     sendingVoice.value = false
-    mediaStream?.getTracks().forEach((t) => t.stop())
-    mediaStream = null
   }
 }
 
@@ -514,6 +547,7 @@ onUnmounted(() => {
           <footer class="composer">
             <!-- voice note recorder -->
             <button
+              v-if="!previewingVoice"
               class="mic-btn"
               :class="{ recording }"
               :title="recording ? 'Stop recording' : 'Record voice note'"
@@ -524,15 +558,32 @@ onUnmounted(() => {
             </button>
             <span v-if="recording" class="rec-timer">● {{ fmtRecording(recordingSeconds) }}</span>
             <span v-if="sendingVoice" class="rec-timer">Sending…</span>
-            <textarea
-              v-model="draft"
-              rows="2"
-              :placeholder="recording ? 'Recording…' : 'Type a message…'"
-              @keydown="onKeydown"
-            ></textarea>
-            <button class="btn btn-primary" :disabled="sending || !draft.trim() || recording" @click="send">
-              {{ sending ? 'Sending…' : 'Send' }}
-            </button>
+
+            <!-- voice note preview: listen first, then send or discard -->
+            <template v-if="previewingVoice">
+              <button class="mic-btn" :class="{ playing: previewPlaying }" title="Play / pause preview" @click="togglePreviewPlay">
+                <svg v-if="!previewPlaying" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h4v12H6zm8 0h4v12h-4z"/></svg>
+              </button>
+              <audio id="voice-preview" :src="previewUrl || undefined" preload="metadata" @ended="onPreviewEnded"></audio>
+              <span class="rec-timer">{{ fmtRecording(recordingSeconds || recordedDuration) }}</span>
+              <button class="btn btn-primary" :disabled="sendingVoice" @click="sendVoice">
+                {{ sendingVoice ? 'Sending…' : 'Send' }}
+              </button>
+              <button class="discard-btn" title="Discard" :disabled="sendingVoice" @click="discardVoice">×</button>
+            </template>
+
+            <template v-else>
+              <textarea
+                v-model="draft"
+                rows="2"
+                :placeholder="recording ? 'Recording…' : 'Type a message…'"
+                @keydown="onKeydown"
+              ></textarea>
+              <button class="btn btn-primary" :disabled="sending || !draft.trim() || recording" @click="send">
+                {{ sending ? 'Sending…' : 'Send' }}
+              </button>
+            </template>
           </footer>
           <p v-if="voiceErrors" class="voice-err">{{ voiceErrors }}</p>
         </template>
@@ -926,6 +977,34 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 0.85rem;
   white-space: nowrap;
+}
+
+#voice-preview {
+  display: none;
+}
+
+.mic-btn.playing {
+  background: #ff453a;
+  color: #fff;
+}
+
+.discard-btn {
+  align-self: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: #fff;
+  color: var(--color-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.discard-btn:hover {
+  color: #ff453a;
+  border-color: #ff453a;
 }
 
 .voice-err {
