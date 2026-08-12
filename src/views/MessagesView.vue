@@ -39,6 +39,12 @@ function scrollToBottom() {
   })
 }
 
+function isNearBottom() {
+  const el = chatRef.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 150
+}
+
 function fmtTime(v: string) {
   return new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
@@ -79,16 +85,20 @@ async function loadConversations() {
   }
 }
 
-async function openThread(userId: number) {
+async function openThread(userId: number, silent = false) {
   activeUserId.value = userId
-  threadLoading.value = true
-  messages.value = []
+  if (!silent) {
+    threadLoading.value = true
+    messages.value = []
+  }
   try {
     const res = await messageApi.thread(userId)
     threadUser.value = res.data.user
     messages.value = res.data.messages
-    scrollToBottom()
-    await loadConversations()
+    // only auto-scroll on a fresh open, or on silent refresh when the user is
+    // already near the bottom (don't yank them away from reading history)
+    if (!silent || isNearBottom()) scrollToBottom()
+    if (!silent) await loadConversations()
   } catch (e: any) {
     error.value = e.response?.data?.error || 'Failed to load conversation.'
   } finally {
@@ -178,8 +188,9 @@ watch(() => route.query, () => {
 let pollTimer: number | null = null
 onMounted(() => {
   pollTimer = window.setInterval(() => {
+    // silent refresh: no loading flash, chat stays visible
     loadConversations()
-    if (activeUserId.value) openThread(activeUserId.value)
+    if (activeUserId.value) openThread(activeUserId.value, true)
   }, 10000)
 })
 onUnmounted(() => {
