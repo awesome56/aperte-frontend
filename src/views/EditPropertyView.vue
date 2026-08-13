@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { propertyApi } from '@/api'
+import { propertyApi, PROPERTY_SERVICES } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -9,6 +9,14 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const property = ref<any>(null)
+const services = ref<string[]>([])
+const isServiceCat = computed(() => ['hotel', 'hall', 'event_center', 'shortlet'].includes(property.value?.category))
+
+function toggleService(s: string) {
+  const i = services.value.indexOf(s)
+  if (i >= 0) services.value.splice(i, 1)
+  else services.value.push(s)
+}
 const loading = ref(true)
 const error = ref('')
 const msg = ref('')
@@ -48,6 +56,8 @@ async function load() {
     form.contact_phones = (res.data.contact_phones?.length ? res.data.contact_phones : ['']).map((p: string) => p)
     form.contact_emails = (res.data.contact_emails?.length ? res.data.contact_emails : ['']).map((e: string) => e)
     form.contact_website = res.data.contact_website || ''
+    const attrs = (res.data.attributes as Record<string, any>) || {}
+    services.value = Array.isArray(attrs.services) ? attrs.services.filter((s: string) => PROPERTY_SERVICES.includes(s)) : []
   } catch (e: any) {
     error.value = e.response?.data?.error || 'Failed to load property.'
   } finally {
@@ -71,6 +81,7 @@ async function save() {
       contact_phones: form.contact_phones.map((p) => p.trim()).filter(Boolean),
       contact_emails: form.contact_emails.map((e) => e.trim()).filter(Boolean),
       contact_website: form.contact_website || null,
+      attributes: services.value.length ? { services: services.value } : {},
     })
     msg.value = 'Property details updated.'
   } catch (e: any) {
@@ -138,6 +149,19 @@ onMounted(load)
       </div>
       <div class="form-group check">
         <label><input v-model="form.disabled" type="checkbox" :true-value="1" :false-value="0" /> Disable listing (hidden from the site)</label>
+      </div>
+      <div v-if="isServiceCat" class="form-group">
+        <label>Services</label>
+        <div class="chip-row">
+          <button
+            v-for="s in PROPERTY_SERVICES"
+            :key="s"
+            type="button"
+            class="svc-chip"
+            :class="{ active: services.includes(s) }"
+            @click="toggleService(s)"
+          >{{ s }}</button>
+        </div>
       </div>
       <div class="form-group">
         <label>Phone Numbers</label>
@@ -246,6 +270,34 @@ onMounted(load)
   padding: 10px 12px;
   font-size: 0.92rem;
   font-family: inherit;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.svc-chip {
+  padding: 8px 16px;
+  border-radius: 24px;
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  background: #fff;
+  color: #555;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.svc-chip:hover {
+  border-color: var(--color-primary, #0a84ff);
+  color: var(--color-primary, #0a84ff);
+}
+
+.svc-chip.active {
+  background: var(--color-primary, #0a84ff);
+  border-color: var(--color-primary, #0a84ff);
+  color: #fff;
 }
 
 .multi-row {

@@ -718,6 +718,9 @@ export const bookingStatusLabels: Record<string, string> = {
   completed: 'Completed',
 }
 
+// Standard services offered by hotels / venues on Aperte.
+export const PROPERTY_SERVICES = ['Restaurant', 'Gym', 'Pool', 'Spa', 'Conference', 'Bar']
+
 // Map ISO currency code to its symbol for display.
 const CURRENCY_SYMBOLS: Record<string, string> = {
   NGN: '₦',

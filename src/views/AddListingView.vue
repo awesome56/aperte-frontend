@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { propertyApi, categoryLabels, purposeLabels } from '@/api'
+import { propertyApi, categoryLabels, purposeLabels, PROPERTY_SERVICES } from '@/api'
 
 const router = useRouter()
 
@@ -30,6 +30,14 @@ const form = reactive({
 
 const images = ref<File[]>([])
 const videos = ref<File[]>([])
+const services = ref<string[]>([])
+const isServiceCat = computed(() => ['hotel', 'hall', 'event_center', 'shortlet'].includes(form.category))
+
+function toggleService(s: string) {
+  const i = services.value.indexOf(s)
+  if (i >= 0) services.value.splice(i, 1)
+  else services.value.push(s)
+}
 const error = ref('')
 const loading = ref(false)
 
@@ -99,6 +107,7 @@ async function submit() {
   try {
     const amenities = parseJson(form.amenities, 'Amenities')
     const attributes = parseJson(form.attributes, 'Attributes')
+    if (services.value.length) attributes.services = services.value
 
     const payload: Record<string, unknown> = {
       title: form.title,
@@ -255,6 +264,19 @@ async function submit() {
           <div class="form-group">
             <label>Amenities (JSON)</label>
             <input v-model="form.amenities" class="form-control" placeholder='{"parking": true, "security": true}' />
+          </div>
+          <div v-if="isServiceCat" class="form-group">
+            <label>Services</label>
+            <div class="chip-row">
+              <button
+                v-for="s in PROPERTY_SERVICES"
+                :key="s"
+                type="button"
+                class="svc-chip"
+                :class="{ active: services.includes(s) }"
+                @click="toggleService(s)"
+              >{{ s }}</button>
+            </div>
           </div>
           <div class="form-group">
             <label>Attributes (JSON) — suggested keys for {{ categoryLabels[form.category] }}:
@@ -444,6 +466,35 @@ async function submit() {
   accent-color: var(--color-primary);
   width: 18px;
   height: 18px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.svc-chip {
+  padding: 8px 16px;
+  border-radius: 24px;
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  background: #fff;
+  color: #555;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.svc-chip:hover {
+  border-color: var(--color-primary, #0a84ff);
+  color: var(--color-primary, #0a84ff);
+}
+
+.svc-chip.active {
+  background: var(--color-primary, #0a84ff);
+  border-color: var(--color-primary, #0a84ff);
+  color: #fff;
 }
 
 .multi-row {

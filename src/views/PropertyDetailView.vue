@@ -214,6 +214,12 @@ function attr(label: string, key: string) {
   return { label, value: attrs[key] }
 }
 
+const propertyServices = computed(() => {
+  const attrs = property.value?.attributes as Record<string, any> | undefined
+  if (attrs && Array.isArray(attrs.services)) return attrs.services as string[]
+  return []
+})
+
 function amenityKeys() {
   const a = property.value?.amenities as Record<string, any> | undefined
   if (!a) return []
@@ -337,6 +343,17 @@ onMounted(async () => {
               <span v-for="a in amenityKeys()" :key="a" class="amenity">
                 <span class="amenity-icon">{{ AMENITY_ICONS[a] || '✓' }}</span>
                 {{ a.replace(/_/g, ' ') }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Services -->
+          <div v-if="propertyServices.length" class="block">
+            <h3 class="subhead">Services</h3>
+            <div class="amenities">
+              <span v-for="s in propertyServices" :key="s" class="amenity">
+                <span class="amenity-icon">✦</span>
+                {{ s }}
               </span>
             </div>
           </div>
