@@ -224,11 +224,11 @@ const propertyServices = computed(() => {
     .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1))
 })
 
-// attribute entries shown in the details grid (services get their own block)
+// attribute entries shown in the details grid (services and source get their own treatment)
 const attrEntries = computed(() => {
   const attrs = property.value?.attributes as Record<string, any> | undefined
   if (!attrs) return []
-  return Object.entries(attrs).filter(([k]) => k !== 'services')
+  return Object.entries(attrs).filter(([k]) => k !== 'services' && k !== 'source')
 })
 
 function attrValue(v: any): string {
