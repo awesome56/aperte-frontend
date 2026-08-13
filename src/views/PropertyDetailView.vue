@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   pricePeriod,
@@ -245,8 +245,15 @@ function amenityKeys() {
     .map(([k]) => k)
 }
 
-onMounted(async () => {
+async function loadProperty() {
   const id = Number(route.params.id)
+  loading.value = true
+  error.value = ''
+  property.value = null
+  rooms.value = []
+  slots.value = []
+  similar.value = []
+  sameCity.value = []
   try {
     const res = await propertyApi.get(id)
     property.value = res.data
@@ -290,7 +297,19 @@ onMounted(async () => {
     loading.value = false
     recLoading.value = false
   }
-})
+}
+
+onMounted(loadProperty)
+
+// Reload when navigating between property pages (component is reused by the
+// router, so onMounted doesn't fire again).
+watch(
+  () => route.params.id,
+  () => {
+    bookingOpen.value = false
+    loadProperty()
+  },
+)
 </script>
 
 <template>
