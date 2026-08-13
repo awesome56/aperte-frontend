@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/auth'
 import ClaimPropertyModal from '@/components/ClaimPropertyModal.vue'
 import PropertyGallery from '@/components/PropertyGallery.vue'
 import PropertyCard from '@/components/PropertyCard.vue'
+import AvailabilityCalendar from '@/components/AvailabilityCalendar.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import { recentlyViewed, recordPropertyView } from '@/composables/recentlyViewed'
 
@@ -338,6 +339,12 @@ onMounted(async () => {
             <div class="video-list">
               <video v-for="v in property.videos" :key="v.id" :src="v.video_url" controls preload="metadata"></video>
             </div>
+          </div>
+
+          <!-- Availability calendar (bookable properties) -->
+          <div v-if="isBookable" class="block">
+            <h3 class="subhead">Availability</h3>
+            <AvailabilityCalendar :property-id="property.id" :category="property.category" />
           </div>
 
           <!-- Rooms (hotel) -->

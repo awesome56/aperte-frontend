@@ -14,6 +14,8 @@ import {
   bookingStatusLabels,
 } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import AvailabilityCalendar from '@/components/AvailabilityCalendar.vue'
+import { availabilityApi, type AvailabilityData } from '@/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -46,6 +48,48 @@ const savingEdit = ref(false)
 const roomForm = reactive({ room_type: '', beds: 1, price: 0, amenities: '' })
 const slotForm = reactive({ date: '', start_time: '', end_time: '', price: 0 })
 
+// availability management
+const availability = ref<AvailabilityData | null>(null)
+const blockForm = reactive({ start_date: '', end_date: '' })
+const blockMsg = ref('')
+const blockErr = ref('')
+
+async function loadAvailability() {
+  try {
+    const r = await availabilityApi.get(property.value!.id)
+    availability.value = r.data
+  } catch {
+    availability.value = null
+  }
+}
+
+async function blockDates() {
+  blockMsg.value = ''
+  blockErr.value = ''
+  if (!blockForm.start_date || !blockForm.end_date) {
+    blockErr.value = 'Select a start and end date.'
+    return
+  }
+  try {
+    await availabilityApi.block(property.value!.id, blockForm.start_date, blockForm.end_date)
+    blockMsg.value = 'Dates blocked — these days will show as unavailable.'
+    blockForm.start_date = ''
+    blockForm.end_date = ''
+    await loadAvailability()
+  } catch (e: any) {
+    blockErr.value = e.response?.data?.error || 'Failed to block dates.'
+  }
+}
+
+async function unblockDates(blockId: number) {
+  try {
+    await availabilityApi.unblock(blockId)
+    await loadAvailability()
+  } catch (e: any) {
+    blockErr.value = e.response?.data?.error || 'Failed to unblock dates.'
+  }
+}
+
 async function load() {
   const id = Number(route.params.id)
   loading.value = true
@@ -76,6 +120,7 @@ async function load() {
     }
     const b = await bookingApi.property(id)
     propertyBookings.value = b.data.data
+    await loadAvailability()
   } catch (e: any) {
     error.value = e.response?.data?.error || 'Failed to load property.'
   } finally {
@@ -389,6 +434,32 @@ onMounted(load)
           <input v-model.number="slotForm.price" type="number" min="0" placeholder="Price" />
           <button class="btn btn-primary btn-sm" @click="addSlot">Add Slot</button>
         </div>
+      </section>
+
+      <!-- availability (bookable properties) -->
+      <section v-if="['hotel', 'shortlet', 'hall', 'event_center'].includes(property.category)" class="panel">
+        <h2>Availability</h2>
+        <AvailabilityCalendar :property-id="property.id" :category="property.category" />
+
+        <!-- date blocking for hotels/shortlets -->
+        <template v-if="property.category === 'hotel' || property.category === 'shortlet'">
+          <div class="block-form">
+            <div class="inline-form">
+              <input v-model="blockForm.start_date" type="date" aria-label="Block start date" />
+              <input v-model="blockForm.end_date" type="date" aria-label="Block end date" />
+              <button class="btn btn-primary btn-sm" @click="blockDates">Block Dates</button>
+            </div>
+            <p v-if="blockMsg" class="success-text">{{ blockMsg }}</p>
+            <p v-if="blockErr" class="error-text">{{ blockErr }}</p>
+
+            <div v-if="availability?.blocked?.length" class="mini-list">
+              <div v-for="b in availability.blocked" :key="b.id" class="mini-row">
+                <span>Blocked: {{ b.start }} → {{ b.end }}</span>
+                <button class="btn btn-danger btn-sm" @click="unblockDates(b.id)">Unblock</button>
+              </div>
+            </div>
+          </div>
+        </template>
       </section>
 
       <!-- bookings -->

@@ -370,6 +370,21 @@ export const messageApi = {
   remove: (id: number) => api.delete(`/messages/${id}`),
 }
 
+export interface AvailabilityData {
+  category: string
+  booked: { id: number; room_id: number | null; slot_id: number | null; start: string | null; end: string | null; date: string | null; status: string }[]
+  blocked: { id: number; start: string; end: string }[]
+  rooms: { id: number; room_type: string; available: number }[]
+  slots: { id: number; date: string; start_time: string; end_time: string; price: number; status: string; booked_by: number | null }[]
+}
+
+export const availabilityApi = {
+  get: (propertyId: number) => api.get<AvailabilityData>(`/properties/${propertyId}/availability`),
+  block: (propertyId: number, start_date: string, end_date: string) =>
+    api.post<{ message: string; block: { id: number; start: string; end: string } }>(`/properties/${propertyId}/unavailability`, { start_date, end_date }),
+  unblock: (blockId: number) => api.delete(`/unavailability/${blockId}`),
+}
+
 export const callApi = {
   create: (receiverId: number, callType: 'audio' | 'video') =>
     api.post<Call>('/calls/', { receiver_id: receiverId, call_type: callType }),
