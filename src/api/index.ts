@@ -188,7 +188,7 @@ function getVisitorId(): string {
 export const propertyApi = {
   browse: (params: Record<string, unknown>) => api.get<Paginated<Property>>('/properties/', { params }),
   get: (id: number) => api.get<Property>(`/properties/${id}`),
-  mine: (userId: number) => api.get<Paginated<Property>>(`/properties/user/${userId}/`),
+  mine: (userId: number, params?: Record<string, unknown>) => api.get<Paginated<Property>>(`/properties/user/${userId}/`, { params }),
   create: (data: Record<string, unknown>) => api.post<Property>('/properties/', data),
   update: (id: number, data: Record<string, unknown>) => api.put<Property>(`/properties/${id}`, data),
   uploadImages: (id: number, files: File[]) => {
