@@ -24,6 +24,8 @@ const form = reactive({
   amenities: '',
   attributes: '',
   negotiable: 0,
+  contact_phones: [''],
+  contact_emails: [''],
 })
 
 const images = ref<File[]>([])
@@ -118,6 +120,11 @@ async function submit() {
     if (form.bedrooms) payload.bedrooms = Number(form.bedrooms)
     if (form.bathrooms) payload.bathrooms = Number(form.bathrooms)
     if (form.year_built) payload.year_built = Number(form.year_built)
+
+    const phones = form.contact_phones.map((p) => p.trim()).filter(Boolean)
+    const emails = form.contact_emails.map((e) => e.trim()).filter(Boolean)
+    if (phones.length) payload.contact_phones = phones
+    if (emails.length) payload.contact_emails = emails
 
     const res = await propertyApi.create(payload)
     const id = res.data.id
@@ -254,6 +261,24 @@ async function submit() {
               <code class="hint">{{ attrHints[form.category]?.join(', ') || 'none' }}</code>
             </label>
             <textarea v-model="form.attributes" class="form-control" rows="3" placeholder='{"furnished": true}'></textarea>
+          </div>
+
+          <!-- multiple contacts -->
+          <div class="form-group">
+            <label>Phone Numbers</label>
+            <div v-for="(p, i) in form.contact_phones" :key="i" class="multi-row">
+              <input v-model="form.contact_phones[i]" class="form-control" placeholder="+234 803 000 0000" />
+              <button type="button" class="multi-del" @click="form.contact_phones.splice(i, 1)">×</button>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" @click="form.contact_phones.push('')">+ Add phone</button>
+          </div>
+          <div class="form-group">
+            <label>Emails</label>
+            <div v-for="(e, i) in form.contact_emails" :key="i" class="multi-row">
+              <input v-model="form.contact_emails[i]" class="form-control" placeholder="owner@example.com" />
+              <button type="button" class="multi-del" @click="form.contact_emails.splice(i, 1)">×</button>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" @click="form.contact_emails.push('')">+ Add email</button>
           </div>
         </template>
 
@@ -419,6 +444,28 @@ async function submit() {
   accent-color: var(--color-primary);
   width: 18px;
   height: 18px;
+}
+
+.multi-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.multi-row .form-control {
+  flex: 1;
+}
+
+.multi-del {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-border);
+  background: #fff;
+  color: #d0342c;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .hint {

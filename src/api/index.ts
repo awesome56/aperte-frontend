@@ -61,6 +61,8 @@ export interface Property {
   contact_phone?: string | null
   contact_email?: string | null
   contact_website?: string | null
+  contact_phones?: string[]
+  contact_emails?: string[]
   created_at: string
 }
 

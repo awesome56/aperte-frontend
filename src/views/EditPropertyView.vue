@@ -23,8 +23,8 @@ const form = reactive({
   negotiable: 0,
   available: 1,
   disabled: 0,
-  contact_phone: '',
-  contact_email: '',
+  contact_phones: [''],
+  contact_emails: [''],
   contact_website: '',
 })
 
@@ -45,8 +45,8 @@ async function load() {
     form.negotiable = res.data.negotiable
     form.available = res.data.available
     form.disabled = res.data.disabled || 0
-    form.contact_phone = res.data.contact_phone || ''
-    form.contact_email = res.data.contact_email || ''
+    form.contact_phones = (res.data.contact_phones?.length ? res.data.contact_phones : ['']).map((p: string) => p)
+    form.contact_emails = (res.data.contact_emails?.length ? res.data.contact_emails : ['']).map((e: string) => e)
     form.contact_website = res.data.contact_website || ''
   } catch (e: any) {
     error.value = e.response?.data?.error || 'Failed to load property.'
@@ -68,8 +68,8 @@ async function save() {
       negotiable: Number(form.negotiable),
       available: Number(form.available),
       disabled: Number(form.disabled),
-      contact_phone: form.contact_phone || null,
-      contact_email: form.contact_email || null,
+      contact_phones: form.contact_phones.map((p) => p.trim()).filter(Boolean),
+      contact_emails: form.contact_emails.map((e) => e.trim()).filter(Boolean),
       contact_website: form.contact_website || null,
     })
     msg.value = 'Property details updated.'
@@ -140,12 +140,20 @@ onMounted(load)
         <label><input v-model="form.disabled" type="checkbox" :true-value="1" :false-value="0" /> Disable listing (hidden from the site)</label>
       </div>
       <div class="form-group">
-        <label>Contact phone</label>
-        <input v-model="form.contact_phone" class="form-control" />
+        <label>Phone Numbers</label>
+        <div v-for="(p, i) in form.contact_phones" :key="i" class="multi-row">
+          <input v-model="form.contact_phones[i]" class="form-control" placeholder="+234 803 000 0000" />
+          <button type="button" class="multi-del" @click="form.contact_phones.splice(i, 1)">×</button>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" @click="form.contact_phones.push('')">+ Add phone</button>
       </div>
       <div class="form-group">
-        <label>Contact email</label>
-        <input v-model="form.contact_email" class="form-control" />
+        <label>Emails</label>
+        <div v-for="(e, i) in form.contact_emails" :key="i" class="multi-row">
+          <input v-model="form.contact_emails[i]" class="form-control" placeholder="owner@example.com" />
+          <button type="button" class="multi-del" @click="form.contact_emails.splice(i, 1)">×</button>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" @click="form.contact_emails.push('')">+ Add email</button>
       </div>
       <div class="form-group">
         <label>Contact website</label>
@@ -238,6 +246,28 @@ onMounted(load)
   padding: 10px 12px;
   font-size: 0.92rem;
   font-family: inherit;
+}
+
+.multi-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.multi-row .form-control {
+  flex: 1;
+}
+
+.multi-del {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  background: #fff;
+  color: #d0342c;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .row2 {

@@ -74,6 +74,14 @@ const ownerInitials = computed(() => {
 const contactPhone = computed(() => property.value?.contact_phone || '')
 const contactEmail = computed(() => property.value?.contact_email || '')
 const contactWebsite = computed(() => property.value?.contact_website || '')
+const contactPhones = computed(() => {
+  const list = property.value?.contact_phones?.filter(Boolean) || []
+  return list.length ? list : contactPhone.value ? [contactPhone.value] : []
+})
+const contactEmails = computed(() => {
+  const list = property.value?.contact_emails?.filter(Boolean) || []
+  return list.length ? list : contactEmail.value ? [contactEmail.value] : []
+})
 
 const isVerified = computed(() => Boolean(property.value?.approved))
 const isClaimed = computed(() => Boolean(property.value?.owner_is_admin === false))
@@ -403,16 +411,22 @@ onMounted(async () => {
               Message Owner
             </button>
             <button v-if="isBookable && !isOwner" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
-            <a
-              v-if="!isOwner && contactEmail"
-              :href="`mailto:${contactEmail}?subject=${encodeURIComponent(property.title)}`"
-              class="btn btn-outline btn-block"
-            >
-              Email Contact
-            </a>
-            <a v-if="!isOwner && contactPhone" :href="`tel:${contactPhone}`" class="btn btn-primary btn-block">
-              Call Now
-            </a>
+            <div v-if="!isOwner && (contactEmails.length || contactPhones.length)" class="contact-list">
+              <div v-if="contactEmails.length" class="contact-group">
+                <span class="contact-label">Emails</span>
+                <a
+                  v-for="(em, i) in contactEmails"
+                  :key="i"
+                  :href="`mailto:${em}?subject=${encodeURIComponent(property.title)}`"
+                  class="contact-link"
+                >{{ em }}</a>
+              </div>
+              <div v-if="contactPhones.length" class="contact-group">
+                <span class="contact-label">Phones</span>
+                <a v-for="(ph, i) in contactPhones" :key="i" :href="`tel:${ph}`" class="contact-link">{{ ph }}</a>
+              </div>
+              <a v-if="contactWebsite" :href="contactWebsite" target="_blank" rel="noopener" class="contact-link">{{ contactWebsite.replace(/^https?:\/\//, '') }} ↗</a>
+            </div>
 
             <!-- Claim -->
             <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
@@ -908,6 +922,40 @@ onMounted(async () => {
   border-radius: 10px;
   padding: 12px;
   background: var(--color-bg-blue, #eef4ff);
+}
+
+.contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--color-border, #e8ecf3);
+  border-radius: 10px;
+}
+
+.contact-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contact-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9aa0a6;
+}
+
+.contact-link {
+  color: var(--color-primary, #0a84ff);
+  font-size: 0.88rem;
+  word-break: break-all;
+}
+
+.contact-link:hover {
+  text-decoration: underline;
 }
 
 .claim-note {
