@@ -742,6 +742,7 @@ export function currencySymbol(code?: string | null): string {
 // e.g. formatPrice(20000, 'NGN') -> "₦20,000"
 export function formatPrice(price: number | null | undefined, currency?: string | null): string {
   if (price == null) return '—'
+  if (price === 0) return 'Price on request'
   const n = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(price)
   return `${currencySymbol(currency)}${n}`
 }
