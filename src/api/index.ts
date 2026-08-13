@@ -742,3 +742,10 @@ export function formatPrice(price: number | null | undefined, currency?: string 
   const n = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(price)
   return `${currencySymbol(currency)}${n}`
 }
+
+// Price period label so rent/stay prices are unambiguous.
+export function pricePeriod(category?: string, purpose?: string): string {
+  if (category === 'hotel' || category === 'shortlet') return '/night'
+  if (purpose === 'rent') return '/year'
+  return ''
+}

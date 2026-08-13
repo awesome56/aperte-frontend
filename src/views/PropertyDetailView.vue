@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  pricePeriod,
   propertyApi,
   bookingApi,
   roomApi,
@@ -296,8 +297,7 @@ onMounted(async () => {
           <p v-if="property.available === 0" class="unavailable-tag">Currently unavailable</p>
         </div>
         <div class="price-box">
-          <span class="price">{{ fmtPrice(property.price) }}</span>
-          <span class="price-hint" v-if="property.category === 'hotel' || property.category === 'shortlet'">per night</span>
+          <span class="price">{{ fmtPrice(property.price) }}<span class="price-hint">{{ pricePeriod(property.category, property.purpose) }}</span></span>
         </div>
       </div>
 

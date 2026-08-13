@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Property } from '@/api'
-import { categoryLabels, purposeLabels, formatPrice } from '@/api'
+import { categoryLabels, purposeLabels, formatPrice, pricePeriod } from '@/api'
 import FavoriteButton from '@/components/FavoriteButton.vue'
 
 const props = defineProps<{ property: Property }>()
@@ -51,7 +51,7 @@ const verified = computed(() => Boolean(props.property.approved))
     </RouterLink>
 
     <div class="body">
-      <span class="price">{{ formatPrice(property.price, property.currency) }}</span>
+      <span class="price">{{ formatPrice(property.price, property.currency) }}<span class="period">{{ pricePeriod(property.category, property.purpose) }}</span></span>
       <h3 class="title"><RouterLink :to="`/properties/${property.id}`">{{ property.title }}</RouterLink></h3>
       <p class="loc">{{ property.city }}, {{ property.state }}</p>
 
@@ -214,6 +214,12 @@ const verified = computed(() => Boolean(props.property.approved))
   border-radius: 8px;
   font-size: 0.72rem;
   font-weight: 700;
+}
+
+.period {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-muted, #888);
 }
 
 .body {
