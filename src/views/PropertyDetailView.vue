@@ -216,9 +216,26 @@ function attr(label: string, key: string) {
 
 const propertyServices = computed(() => {
   const attrs = property.value?.attributes as Record<string, any> | undefined
-  if (attrs && Array.isArray(attrs.services)) return attrs.services as string[]
-  return []
+  const raw = attrs?.services
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' && raw.trim() ? raw.split(',') : []
+  return list
+    .map((s: string) => s.trim().replace(/^\s+/, ''))
+    .filter(Boolean)
+    .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1))
 })
+
+// attribute entries shown in the details grid (services get their own block)
+const attrEntries = computed(() => {
+  const attrs = property.value?.attributes as Record<string, any> | undefined
+  if (!attrs) return []
+  return Object.entries(attrs).filter(([k]) => k !== 'services')
+})
+
+function attrValue(v: any): string {
+  if (Array.isArray(v)) return v.map((x: string) => x.charAt(0).toUpperCase() + x.slice(1)).join(', ')
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  return String(v).charAt(0).toUpperCase() + String(v).slice(1)
+}
 
 function amenityKeys() {
   const a = property.value?.amenities as Record<string, any> | undefined
@@ -330,8 +347,8 @@ onMounted(async () => {
             <h3 class="subhead">Property details</h3>
             <div class="attrs">
               <div v-if="property.year_built" class="attr"><span>Year Built</span><b>{{ property.year_built }}</b></div>
-              <div v-for="(item, key) in property.attributes" :key="key" class="attr">
-                <span>{{ key.replace(/_/g, ' ') }}</span><b>{{ item }}</b>
+              <div v-for="[key, item] in attrEntries" :key="key" class="attr">
+                <span>{{ key.replace(/_/g, ' ') }}</span><b>{{ attrValue(item) }}</b>
               </div>
             </div>
           </div>
