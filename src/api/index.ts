@@ -681,6 +681,7 @@ export const adminApi = {
   deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
   properties: (params: Record<string, unknown>) => api.get<Paginated<AdminProperty>>('/admin/properties', { params }),
   approve: (id: number) => api.put(`/admin/properties/${id}/approve`),
+  approveAll: () => api.put<{ approved: number }>('/admin/properties/approve-all'),
   reject: (id: number) => api.put(`/admin/properties/${id}/reject`),
   deleteProperty: (id: number) => api.delete(`/admin/properties/${id}`),
   permissions: () => api.get<{ data: Permission[] }>('/admin/permissions'),

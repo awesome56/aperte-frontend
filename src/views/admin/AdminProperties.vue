@@ -50,6 +50,17 @@ async function approve(p: AdminProperty) {
   }
 }
 
+async function approveAll() {
+  if (!confirm('Approve ALL pending properties? They will immediately become visible on the site.')) return
+  try {
+    const r = await adminApi.approveAll()
+    msg.value = `${r.data.approved} pending properties approved.`
+    await load()
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to approve all.'
+  }
+}
+
 async function reject(p: AdminProperty) {
   try {
     await adminApi.reject(p.id)
@@ -92,6 +103,7 @@ onMounted(load)
       <button :class="{ active: status === 'all' }" @click="setStatus('all')">All</button>
       <button :class="{ active: status === 'pending' }" @click="setStatus('pending')">Pending</button>
       <button :class="{ active: status === 'approved' }" @click="setStatus('approved')">Approved</button>
+      <button v-if="status === 'pending'" class="btn small approve-all" @click="approveAll">Approve all pending</button>
     </div>
 
     <p v-if="msg" class="ok">{{ msg }}</p>
