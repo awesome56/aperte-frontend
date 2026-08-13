@@ -34,6 +34,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/properties/edit/:id',
+      name: 'property-edit',
+      component: () => import('../views/EditPropertyView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/rooms/:id',
       name: 'room-detail',
       component: () => import('../views/RoomDetailView.vue'),

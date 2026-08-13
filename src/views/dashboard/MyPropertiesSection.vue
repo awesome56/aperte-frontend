@@ -87,10 +87,11 @@ onMounted(async () => {
             <span :class="p.available ? 'ok-text' : 'bad-text'">{{ p.available ? 'Available' : 'Unavailable' }}</span>
           </div>
           <div class="prop-actions">
-            <button class="btn btn-primary btn-sm" @click="manageProperty(p.id)">Manage Property</button>
+            <button class="btn btn-primary btn-sm" @click="manageProperty(p.id)">Manage</button>
+            <RouterLink :to="`/properties/edit/${p.id}`" class="btn btn-outline btn-sm">Edit</RouterLink>
             <RouterLink :to="`/properties/${p.id}`" class="btn btn-outline btn-sm">View</RouterLink>
             <button class="btn btn-outline btn-sm" :disabled="toggling === p.id" @click="toggleDisabled(p)">
-              {{ toggling === p.id ? '…' : p.disabled ? 'Enable Listing' : 'Disable Listing' }}
+              {{ toggling === p.id ? '…' : p.disabled ? 'Enable' : 'Disable' }}
             </button>
           </div>
         </div>

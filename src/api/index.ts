@@ -218,6 +218,7 @@ export const propertyApi = {
       properties: { id: number; title: string; dp: string; views: number; favorites: number; bookings: Record<string, number>; created_at: string }[]
       requests: { id: number; title: string; responses: number; created_at: string }[]
     }>('/properties/analytics/mine'),
+  stats: (id: number) => api.get<PropertyStats>(`/properties/${id}/stats`),
   claim: (id: number) =>
     api.post<{ message: string; claim: { id: number; status: string }; verification_email?: string }>(`/properties/${id}/claim`, { method: 'email' }),
   claimWithDocument: (id: number, file: File) => {
@@ -376,6 +377,28 @@ export interface AvailabilityData {
   blocked: { id: number; start: string; end: string }[]
   rooms: { id: number; room_type: string; available: number }[]
   slots: { id: number; date: string; start_time: string; end_time: string; price: number; status: string; booked_by: number | null }[]
+}
+
+export interface PropertyStats {
+  property: {
+    id: number
+    title: string
+    category: string
+    approved: number
+    available: number
+    disabled: number
+    views: number
+    favorites: number
+    dp: string
+    created_at: string
+  }
+  bookings: { total: number; pending: number; confirmed: number; completed: number; cancelled: number }
+  revenue: number
+  rooms: { id: number; room_type: string; beds: number; price: number; available: number; bookings: number; active_bookings: number; revenue: number }[]
+  slot_count: number
+  reviews: { id: number; user_id: number; username: string | null; full_name: string | null; rating: number; title: string; content: string; created_at: string }[]
+  average_rating: number | null
+  review_count: number
 }
 
 export const availabilityApi = {
