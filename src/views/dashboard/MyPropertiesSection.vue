@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { propertyApi, formatPrice, type Property } from '@/api'
 import { useAuthStore } from '@/stores/auth'
@@ -10,6 +10,49 @@ const router = useRouter()
 const properties = ref<Property[]>([])
 const loading = ref(true)
 const err = ref('')
+
+const searchTerm = ref('')
+const categoryFilter = ref('')
+const statusFilter = ref('all')
+const showFilters = ref(false)
+let searchTimer: number | null = null
+
+const CATEGORIES = ['property', 'land', 'hotel', 'hall', 'event_center', 'shortlet', 'other']
+
+const filteredProperties = computed(() => {
+  let list = properties.value
+  if (statusFilter.value === 'approved') list = list.filter((p) => p.approved === 1 && !p.disabled)
+  if (statusFilter.value === 'pending') list = list.filter((p) => p.approved === 0)
+  if (statusFilter.value === 'hidden') list = list.filter((p) => p.disabled)
+  return list
+})
+
+function onSearch() {
+  if (searchTimer != null) window.clearTimeout(searchTimer)
+  searchTimer = window.setTimeout(load, 350)
+}
+
+async function load() {
+  if (!auth.user?.id) {
+    await auth.fetchMe()
+  }
+  if (!auth.user?.id) {
+    loading.value = false
+    return
+  }
+  loading.value = true
+  try {
+    const params: Record<string, unknown> = {}
+    if (searchTerm.value.trim()) params.search = searchTerm.value.trim()
+    if (categoryFilter.value) params.category = categoryFilter.value
+    const r = await propertyApi.mine(auth.user.id, params)
+    properties.value = r.data.data
+  } catch (e: any) {
+    err.value = e.response?.data?.error || 'Failed to load properties.'
+  } finally {
+    loading.value = false
+  }
+}
 
 function manageProperty(id: number) {
   router.push({ name: 'property-manage', params: { id } })
@@ -33,30 +76,41 @@ async function toggleDisabled(p: Property) {
   }
 }
 
-onMounted(async () => {
-  if (!auth.user?.id) {
-    await auth.fetchMe()
-  }
-  if (!auth.user?.id) {
-    loading.value = false
-    return
-  }
-  try {
-    const r = await propertyApi.mine(auth.user.id)
-    properties.value = r.data.data
-  } catch (e: any) {
-    err.value = e.response?.data?.error || 'Failed to load properties.'
-  } finally {
-    loading.value = false
-  }
-})
+onMounted(load)
 </script>
 
 <template>
   <div>
     <div class="sec-head">
       <h1 class="page-title">My Properties</h1>
-      <RouterLink to="/add-listing" class="btn btn-primary add-btn">+ Add Listing</RouterLink>
+      <div class="head-right">
+        <button class="btn btn-outline filter-toggle" @click="showFilters = !showFilters">Search & Filter</button>
+        <RouterLink to="/add-listing" class="btn btn-primary add-btn">+ Add Listing</RouterLink>
+      </div>
+    </div>
+
+    <!-- search + filters -->
+    <div v-if="showFilters" class="filters">
+      <div class="filter-row">
+        <input
+          v-model="searchTerm"
+          class="filter-input"
+          type="search"
+          placeholder="Search by title…"
+          @input="onSearch"
+        />
+        <select v-model="categoryFilter" class="filter-select" @change="load">
+          <option value="">All categories</option>
+          <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c.replace('_', ' ') }}</option>
+        </select>
+        <select v-model="statusFilter" class="filter-select">
+          <option value="all">All statuses</option>
+          <option value="approved">Approved</option>
+          <option value="pending">Pending approval</option>
+          <option value="hidden">Hidden</option>
+        </select>
+        <button class="btn btn-outline btn-sm" @click="searchTerm = ''; categoryFilter = ''; statusFilter = 'all'; load()">Clear</button>
+      </div>
     </div>
 
     <p v-if="msg" class="success-text banner">{{ msg }}</p>
@@ -64,12 +118,13 @@ onMounted(async () => {
 
     <div v-if="loading" class="loading">Loading…</div>
     <div v-else-if="err" class="loading">{{ err }}</div>
-    <div v-else-if="!properties.length" class="empty">
-      <p>You have no listings yet.</p>
+    <div v-else-if="!filteredProperties.length" class="empty">
+      <p v-if="searchTerm || categoryFilter || statusFilter !== 'all'">No properties match your search.</p>
+      <p v-else>You have no listings yet.</p>
       <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
     </div>
     <div v-else class="prop-list">
-      <div v-for="p in properties" :key="p.id" class="prop-card" :class="{ hidden: p.disabled }">
+      <div v-for="p in filteredProperties" :key="p.id" class="prop-card" :class="{ hidden: p.disabled }">
         <img v-if="p.dp || p.images?.[0]" :src="p.dp || p.images?.[0]?.image_url" alt="" class="prop-thumb" />
         <div class="prop-ph" v-else></div>
         <div class="prop-body">
@@ -146,6 +201,48 @@ onMounted(async () => {
 
 .prop-card.hidden {
   opacity: 0.75;
+}
+
+/* search + filters */
+.head-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.filter-toggle {
+  padding: 8px 16px;
+  font-size: 0.88rem;
+}
+
+.filters {
+  background: #f8f9fc;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  flex: 1;
+  min-width: 200px;
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+}
+
+.filter-select {
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  background: #fff;
 }
 
 .loading,

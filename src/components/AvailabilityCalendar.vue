@@ -2,12 +2,20 @@
 import { ref, computed, onMounted } from 'vue'
 import { availabilityApi, type AvailabilityData } from '@/api'
 
-const props = defineProps<{ propertyId: number; category: string }>()
+const props = defineProps<{
+  propertyId: number
+  category: string
+  manage?: boolean
+  compact?: boolean
+}>()
 
 const data = ref<AvailabilityData | null>(null)
 const loading = ref(true)
 const month = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
 const roomId = ref<number | null>(null)
+
+const busyDay = ref('')
+const notice = ref('')
 
 const isDateBased = computed(() => props.category === 'hotel' || props.category === 'shortlet')
 const isSlotBased = computed(() => props.category === 'hall' || props.category === 'event_center')
@@ -22,10 +30,12 @@ function shiftMonth(delta: number) {
 
 interface DayCell {
   date: Date
+  iso: string
   inMonth: boolean
   state: 'free' | 'booked' | 'blocked' | 'past' | 'mixed'
   freeSlots: number
   bookedSlots: number
+  blockId?: number
 }
 
 function inRange(day: Date, start: string | null, end: string | null): boolean {
@@ -43,24 +53,26 @@ const cells = computed<DayCell[]>(() => {
   const daysInMonth = new Date(year, m + 1, 0).getDate()
   const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
 
-  const cellsOut: DayCell[] = []
+  const out: DayCell[] = []
   for (let i = 0; i < startOffset; i++) {
-    cellsOut.push({ date: new Date(year, m, i - startOffset + 1), inMonth: false, state: 'past', freeSlots: 0, bookedSlots: 0 })
+    out.push({ date: new Date(year, m, i - startOffset + 1), iso: '', inMonth: false, state: 'past', freeSlots: 0, bookedSlots: 0 })
   }
   for (let d = 1; d <= daysInMonth; d++) {
     const day = new Date(year, m, d)
+    const iso = day.toISOString().slice(0, 10)
 
     if (!data.value) {
-      cellsOut.push({ date: day, inMonth: true, state: day < today ? 'past' : 'free', freeSlots: 0, bookedSlots: 0 })
+      out.push({ date: day, iso, inMonth: true, state: day < today ? 'past' : 'free', freeSlots: 0, bookedSlots: 0 })
       continue
     }
 
     if (isSlotBased.value) {
-      const daySlots = data.value.slots.filter((s) => s.date === day.toISOString().slice(0, 10))
+      const daySlots = data.value.slots.filter((s) => s.date === iso)
       const free = daySlots.filter((s) => s.status === 'available').length
       const booked = daySlots.length - free
-      cellsOut.push({
+      out.push({
         date: day,
+        iso,
         inMonth: true,
         state: daySlots.length ? (free > 0 && booked > 0 ? 'mixed' : free > 0 ? 'free' : 'booked') : day < today ? 'past' : 'free',
         freeSlots: free,
@@ -72,31 +84,59 @@ const cells = computed<DayCell[]>(() => {
     // hotel / shortlet: date-range based
     const relevant = roomId.value != null ? data.value.booked.filter((b) => b.room_id === roomId.value) : data.value.booked
     const isBooked = relevant.some((b) => inRange(day, b.start, b.end))
-    const isBlocked = data.value.blocked.some((b) => inRange(day, b.start, new Date(new Date(b.end).getTime() + 86400000).toISOString().slice(0, 10)))
+    const block = data.value.blocked.find((b) => inRange(day, b.start, new Date(new Date(b.end).getTime() + 86400000).toISOString().slice(0, 10)))
     let state: DayCell['state'] = day < today ? 'past' : 'free'
-    if (isBlocked) state = 'blocked'
+    if (block) {
+      state = 'blocked'
+    }
     if (isBooked) state = 'booked'
-    cellsOut.push({ date: day, inMonth: true, state, freeSlots: 0, bookedSlots: 0 })
+    out.push({ date: day, iso, inMonth: true, state, freeSlots: 0, bookedSlots: 0, blockId: block?.id })
   }
-  return cellsOut
+  return out
 })
 
-onMounted(async () => {
+// manage mode: click a free day to block it, click a blocked day to unblock
+async function toggleDay(cell: DayCell) {
+  if (!props.manage || !isDateBased.value || !cell.inMonth) return
+  if (cell.state === 'booked' || cell.state === 'past') return
+  if (busyDay.value) return
+  busyDay.value = cell.iso
+  notice.value = ''
+  try {
+    if (cell.state === 'blocked' && cell.blockId != null) {
+      await availabilityApi.unblock(cell.blockId)
+      notice.value = `${cell.iso} unblocked.`
+    } else if (cell.state === 'free') {
+      await availabilityApi.block(props.propertyId, cell.iso, cell.iso)
+      notice.value = `${cell.iso} blocked.`
+    }
+    await refresh()
+  } catch (e: any) {
+    notice.value = e.response?.data?.error || 'Could not update availability.'
+  } finally {
+    busyDay.value = ''
+  }
+}
+
+async function refresh() {
   try {
     const r = await availabilityApi.get(props.propertyId)
     data.value = r.data
-    const firstRoom = r.data.rooms?.[0]
-    if (firstRoom) roomId.value = firstRoom.id
   } catch {
     data.value = null
-  } finally {
-    loading.value = false
   }
+}
+
+onMounted(async () => {
+  await refresh()
+  const firstRoom = data.value?.rooms?.[0]
+  if (firstRoom) roomId.value = firstRoom.id
+  loading.value = false
 })
 </script>
 
 <template>
-  <div class="avail" :class="{ loading }">
+  <div class="avail" :class="{ compact, manage }">
     <div class="avail-head">
       <button class="nav-btn" aria-label="Previous month" @click="shiftMonth(-1)">‹</button>
       <strong>{{ monthLabel }}</strong>
@@ -106,23 +146,28 @@ onMounted(async () => {
       </select>
     </div>
 
+    <p v-if="manage && notice" class="notice" :class="{ err: notice.startsWith('Could') }">{{ notice }}</p>
+    <p v-if="manage" class="hint">Click a day to block it, click a blocked day to unblock.</p>
+
     <div class="weekdays">
       <span v-for="w in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="w">{{ w }}</span>
     </div>
 
     <div class="grid">
-      <div
+      <button
         v-for="(c, i) in cells"
         :key="i"
         class="day"
-        :class="[c.state, { muted: !c.inMonth }]"
-        :title="c.inMonth ? `${c.date.toISOString().slice(0, 10)} — ${c.state}` : ''"
+        :class="[c.state, { muted: !c.inMonth, clickable: manage && isDateBased && c.inMonth && (c.state === 'free' || c.state === 'blocked') }]"
+        :disabled="busyDay === c.iso || !(manage && isDateBased && c.inMonth && (c.state === 'free' || c.state === 'blocked'))"
+        :title="c.inMonth ? `${c.iso} — ${c.state}` : ''"
+        @click="toggleDay(c)"
       >
         <span class="dnum">{{ c.date.getDate() }}</span>
         <span v-if="c.inMonth && isSlotBased && (c.freeSlots || c.bookedSlots)" class="slot-info">
-          {{ c.freeSlots }}/{{ c.freeSlots + c.bookedSlots }} free
+          {{ c.freeSlots }}/{{ c.freeSlots + c.bookedSlots }}
         </span>
-      </div>
+      </button>
     </div>
 
     <div class="legend">
@@ -141,6 +186,54 @@ onMounted(async () => {
   border-radius: 14px;
   padding: 16px;
   background: #fff;
+}
+
+/* compact: ~10% smaller */
+.avail.compact {
+  padding: 12px;
+  border-radius: 12px;
+  max-width: 720px;
+}
+
+.avail.compact .avail-head {
+  margin-bottom: 8px;
+}
+
+.avail.compact .nav-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 0.9rem;
+}
+
+.avail.compact .room-select {
+  padding: 5px 8px;
+  font-size: 0.78rem;
+}
+
+.avail.compact .weekdays span {
+  font-size: 0.62rem;
+  padding: 3px 0;
+}
+
+.avail.compact .day {
+  min-height: 34px;
+  font-size: 0.72rem;
+  border-radius: 7px;
+}
+
+.avail.compact .slot-info {
+  font-size: 0.56rem;
+}
+
+.avail.compact .legend {
+  margin-top: 8px;
+  font-size: 0.72rem;
+  gap: 12px;
+}
+
+.avail.compact .lg {
+  width: 10px;
+  height: 10px;
 }
 
 .avail-head {
@@ -168,6 +261,23 @@ onMounted(async () => {
   font-size: 0.85rem;
 }
 
+.notice {
+  font-size: 0.82rem;
+  color: #1a7f37;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.notice.err {
+  color: #d0342c;
+}
+
+.hint {
+  color: #9aa0a6;
+  font-size: 0.8rem;
+  margin: 0 0 10px;
+}
+
 .weekdays,
 .grid {
   display: grid;
@@ -187,6 +297,7 @@ onMounted(async () => {
 .day {
   aspect-ratio: 1;
   border-radius: 8px;
+  border: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -195,6 +306,7 @@ onMounted(async () => {
   font-size: 0.8rem;
   font-weight: 500;
   min-height: 40px;
+  font-family: inherit;
 }
 
 .day.muted {
@@ -230,6 +342,14 @@ onMounted(async () => {
   color: #b6bcc4;
 }
 
+.day.clickable {
+  cursor: pointer;
+}
+
+.day.clickable:hover {
+  box-shadow: inset 0 0 0 2px #0a84ff;
+}
+
 .slot-info {
   font-size: 0.62rem;
   font-weight: 700;
@@ -260,10 +380,4 @@ onMounted(async () => {
 .lg.free { background: #e6f7ec; border: 1px solid #71dd8c; }
 .lg.booked { background: #ffeceb; border: 1px solid #ff453a; }
 .lg.blocked { background: #f4e3c3; border: 1px solid #d9a94e; }
-
-.hint {
-  margin-top: 12px;
-  color: #9aa0a6;
-  font-size: 0.82rem;
-}
 </style>

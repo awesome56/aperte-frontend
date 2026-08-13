@@ -336,7 +336,7 @@ onMounted(load)
       <!-- AVAILABILITY -->
       <div v-else-if="tab === 'availability'" class="panel">
         <h2>Availability Calendar</h2>
-        <AvailabilityCalendar :property-id="property.id" :category="property.category" />
+        <AvailabilityCalendar :property-id="property.id" :category="property.category" :manage="true" :compact="true" />
 
         <div v-if="property.category === 'hotel' || property.category === 'shortlet'" class="block-form">
           <h2>Block Dates</h2>
