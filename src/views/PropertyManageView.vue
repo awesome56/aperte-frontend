@@ -31,9 +31,11 @@ const err = ref('')
 
 const tab = ref('overview')
 const tabs = computed(() => {
-  const base = ['overview', 'availability']
-  if (property.value?.category === 'hotel') base.push('rooms')
-  if (property.value?.category === 'hall' || property.value?.category === 'event_center') base.push('slots')
+  const cat = property.value?.category
+  const base = ['overview']
+  if (cat === 'hotel' || cat === 'shortlet' || cat === 'hall' || cat === 'event_center') base.push('availability')
+  if (cat === 'hotel') base.push('rooms')
+  if (cat === 'hall' || cat === 'event_center') base.push('slots')
   base.push('bookings', 'photos', 'reviews')
   return base
 })
