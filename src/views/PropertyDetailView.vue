@@ -506,6 +506,17 @@ watch(
         </aside>
       </div>
 
+      <!-- Safety tips -->
+      <div class="safety-tips">
+        <h3 class="tips-title">Safety tips for your visit</h3>
+        <ul class="tips-list">
+          <li>Never pay an inspection fee until you have seen both the property and the agent in person.</li>
+          <li>Hold off on any rent, deposit or other upfront payment until you have confirmed the landlord is genuine.</li>
+          <li>Arrange to meet the agent in a public place and preferably with a companion.</li>
+          <li>Agents on Aperte operate independently — Aperte does not represent them and is not liable for any money exchanged directly between you and an agent.</li>
+        </ul>
+      </div>
+
       <!-- Booking modal -->
       <div v-if="bookingOpen" class="modal-backdrop" @click.self="bookingOpen = false">
         <div class="modal">
@@ -1094,6 +1105,35 @@ watch(
 /* recommendations */
 .recs {
   margin-top: 44px;
+}
+
+/* safety tips */
+.safety-tips {
+  margin-top: 40px;
+  padding: 20px 22px;
+  border: 1px solid var(--color-border, #e6e6e6);
+  border-radius: 12px;
+  background: #faf9f6;
+}
+
+.tips-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-dark, #222);
+  margin-bottom: 12px;
+}
+
+.tips-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.tips-list li {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #555;
 }
 
 .rec-title {
