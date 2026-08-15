@@ -8,6 +8,7 @@ import SkeletonCard from '@/components/SkeletonCard.vue'
 const route = useRoute()
 
 const filters = reactive({
+  search: (route.query.search as string) || '',
   category: (route.query.category as string) || '',
   purpose: (route.query.purpose as string) || '',
   property_type: (route.query.property_type as string) || '',
@@ -125,6 +126,7 @@ function reset() {
 
 watch(page, load)
 watch(() => route.query, () => {
+  if (route.query.search) filters.search = route.query.search as string
   if (route.query.category) filters.category = route.query.category as string
   if (route.query.purpose) filters.purpose = route.query.purpose as string
   if (route.query.city) filters.city = route.query.city as string
@@ -141,6 +143,11 @@ onMounted(load)
       <div class="container">
         <h1>Explore Properties</h1>
         <p>Homes, land, offices, stays and venues across Nigeria</p>
+        <form class="search-form" @submit.prevent="apply">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="sf-icon"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input v-model="filters.search" type="text" placeholder="Search by name, area or city — e.g. Bodija, Jericho, Agodi…" class="sf-input" />
+          <button type="submit" class="btn btn-primary sf-btn">Search</button>
+        </form>
       </div>
     </div>
 
@@ -151,7 +158,6 @@ onMounted(load)
           Filters
           <span v-if="activeFilterCount" class="filter-count">{{ activeFilterCount }}</span>
         </button>
-        <p class="count">{{ meta.total_count.toLocaleString() }} propert{{ meta.total_count === 1 ? 'y' : 'ies' }}</p>
         <select v-model="sort" class="sort-select" @click.self="() => {}" @change="apply" aria-label="Sort results">
           <option v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
         </select>
@@ -367,6 +373,36 @@ onMounted(load)
   color: var(--color-muted, #666);
 }
 
+.search-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+  margin-top: 18px;
+  background: #fff;
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 12px;
+  padding: 6px 6px 6px 14px;
+}
+
+.sf-icon {
+  color: var(--color-muted, #888);
+  flex-shrink: 0;
+}
+
+.sf-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.95rem;
+  min-width: 0;
+}
+
+.sf-btn {
+  flex-shrink: 0;
+}
+
 .topbar-row {
   display: flex;
   align-items: center;
@@ -387,11 +423,6 @@ onMounted(load)
   font-size: 0.72rem;
   padding: 1px 7px;
   margin-left: 4px;
-}
-
-.count {
-  color: var(--color-muted, #666);
-  margin: 0;
 }
 
 .sort-select {

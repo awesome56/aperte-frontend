@@ -8,6 +8,13 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+const searchQuery = ref('')
+
+function goSearch() {
+  const q = searchQuery.value.trim()
+  router.push(q ? { path: '/listings', query: { search: q } } : '/listings')
+}
+
 // vue-router 5 no longer compares query params when deciding link "active"
 // state, so all /listings?… links would light up together. Compute it here:
 // active when the path matches AND every query param of the target is present.
@@ -138,6 +145,10 @@ watch(() => router.currentRoute.value.fullPath, () => {
       <RouterLink to="/" class="brand">Aperte</RouterLink>
 
       <div class="nav-end">
+        <form class="nav-search" @submit.prevent="goSearch">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="ns-icon"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input v-model="searchQuery" type="text" placeholder="Search properties…" class="ns-input" aria-label="Search properties" />
+        </form>
         <template v-if="!auth.isAuthenticated">
           <RouterLink to="/login" class="login-link">Login/Register</RouterLink>
           <RouterLink to="/add-listing" class="btn btn-primary">Add Listing</RouterLink>
@@ -260,6 +271,36 @@ watch(() => router.currentRoute.value.fullPath, () => {
 .brand { font-size: 1.25rem; font-weight: 600; color: var(--clr-black); white-space: nowrap; }
 
 .nav-end { display: flex; align-items: center; gap: 14px; white-space: nowrap; flex-shrink: 0; }
+
+.nav-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f2f4f8;
+  border: 1.5px solid var(--color-border, #e5e8ee);
+  border-radius: 999px;
+  padding: 7px 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.nav-search:focus-within {
+  background: #fff;
+  border-color: var(--color-primary, #0a84ff);
+}
+
+.ns-icon { color: var(--color-muted, #888); flex-shrink: 0; }
+
+.nav-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  width: 150px;
+  min-width: 0;
+  transition: width 0.2s;
+}
+
+.nav-search input:focus { width: 190px; }
 .login-link { font-size: 1rem; font-weight: 500; color: var(--clr-dark); position: relative; }
 .login-link:hover { color: var(--clr-blue); }
 
@@ -386,6 +427,10 @@ watch(() => router.currentRoute.value.fullPath, () => {
 @media (max-width: 900px) {
   .nav-links a:not(.active) { display: none; }
   .nav-links { gap: 10px; }
+}
+
+@media (max-width: 1024px) {
+  .nav-search { display: none; }
 }
 
 /* Mobile: single compact row — avatar + primary actions only */
