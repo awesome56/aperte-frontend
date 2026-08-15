@@ -111,12 +111,12 @@ watch(() => router.currentRoute.value.fullPath, () => {
     <div class="container nav-inner">
       <nav class="nav-links">
         <RouterLink to="/" exact-active-class="active">Home</RouterLink>
-        <RouterLink to="/listings?purpose=sale" active-class="active">Buy</RouterLink>
-        <RouterLink to="/listings?purpose=rent" active-class="active">Rent</RouterLink>
-        <RouterLink to="/listings?category=shortlet" active-class="active">Shortlets</RouterLink>
-        <RouterLink to="/listings?category=hotel" active-class="active">Hotels</RouterLink>
-        <RouterLink to="/listings?category=land" active-class="active">Land</RouterLink>
-        <RouterLink to="/listings?category=event_center" active-class="active">Venues</RouterLink>
+        <RouterLink to="/listings?purpose=sale" exact-active-class="active">Buy</RouterLink>
+        <RouterLink to="/listings?purpose=rent" exact-active-class="active">Rent</RouterLink>
+        <RouterLink to="/listings?category=shortlet" exact-active-class="active">Shortlets</RouterLink>
+        <RouterLink to="/listings?category=hotel" exact-active-class="active">Hotels</RouterLink>
+        <RouterLink to="/listings?category=land" exact-active-class="active">Land</RouterLink>
+        <RouterLink to="/listings?category=event_center" exact-active-class="active">Venues</RouterLink>
         <RouterLink to="/browse-requests" active-class="active">Property Requests</RouterLink>
       </nav>
 
