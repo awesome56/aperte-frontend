@@ -96,6 +96,13 @@ textarea {
   padding: 0 24px;
 }
 
+/* Tighter gutters on mobile so content fits the screen */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

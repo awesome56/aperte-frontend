@@ -274,4 +274,64 @@ const verified = computed(() => Boolean(props.property.approved))
 .specs svg {
   color: var(--clr-blue2, #0a84ff);
 }
+
+/* Compact Jumia-style card on mobile */
+@media (max-width: 768px) {
+  .card {
+    border-radius: 12px;
+  }
+  .media-top {
+    top: 8px;
+    left: 8px;
+    right: 40px;
+  }
+  .badge {
+    padding: 4px 9px;
+    font-size: 0.66rem;
+  }
+  .verified-badge {
+    display: none;
+  }
+  .heart {
+    top: 8px;
+    right: 8px;
+  }
+  .media-badges {
+    display: none;
+  }
+  .unavailable {
+    top: 8px;
+    right: 44px;
+  }
+  .body {
+    padding: 10px 12px 12px;
+    gap: 3px;
+  }
+  .price {
+    font-size: 1.05rem;
+  }
+  .period {
+    font-size: 0.75rem;
+  }
+  .title {
+    font-size: 0.9rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .loc {
+    font-size: 0.78rem;
+  }
+  .specs {
+    gap: 10px;
+    margin-top: 5px;
+    font-size: 0.78rem;
+  }
+  .specs svg {
+    width: 12px;
+    height: 12px;
+  }
+}
 </style>

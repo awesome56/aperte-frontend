@@ -609,14 +609,48 @@ onMounted(async () => {
   }
 }
 
+/* Compact Jumia-style mobile home */
+@media (max-width: 768px) {
+  .hero {
+    padding: 26px 0 8px;
+  }
+  .hero-title {
+    font-size: clamp(1.7rem, 6vw, 2.2rem);
+  }
+  .hero-art {
+    display: none;
+  }
+  .hero-stats {
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .section {
+    padding: 30px 0;
+  }
+}
+
 @media (max-width: 600px) {
   .grid,
   .cat-grid,
   .loc-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .hero-stats .stat:not(:first-child) {
+    display: none;
   }
   .promo-inner {
     padding: 28px 22px;
+  }
+}
+
+@media (max-width: 400px) {
+  .grid,
+  .cat-grid,
+  .loc-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 }
 </style>

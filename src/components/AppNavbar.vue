@@ -188,6 +188,28 @@ watch(() => router.currentRoute.value.fullPath, () => {
       </div>
     </div>
 
+    <!-- Mobile: full-width search + scrollable category chips (Jumia-style) -->
+    <div class="m-search-row">
+      <form v-if="route.path !== '/listings'" class="m-search" @submit.prevent="goSearch">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input v-model="searchQuery" type="text" placeholder="Search properties, areas, cities…" aria-label="Search properties" />
+      </form>
+      <span v-else class="m-search m-search-ghost" @click="router.push('/listings')">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        Search properties, areas, cities…
+      </span>
+    </div>
+    <nav class="m-cats" aria-label="Categories">
+      <RouterLink to="/listings?purpose=sale" :class="{ active: isActive('/listings?purpose=sale') }">Buy</RouterLink>
+      <RouterLink to="/listings?purpose=rent" :class="{ active: isActive('/listings?purpose=rent') }">Rent</RouterLink>
+      <RouterLink to="/listings?category=shortlet" :class="{ active: isActive('/listings?category=shortlet') }">Shortlets</RouterLink>
+      <RouterLink to="/listings?category=hotel" :class="{ active: isActive('/listings?category=hotel') }">Hotels</RouterLink>
+      <RouterLink to="/listings?category=land" :class="{ active: isActive('/listings?category=land') }">Land</RouterLink>
+      <RouterLink to="/listings?category=event_center" :class="{ active: isActive('/listings?category=event_center') }">Venues</RouterLink>
+      <RouterLink to="/browse-requests" :class="{ active: isActive('/browse-requests') }">Requests</RouterLink>
+    </nav>
+  </header>
+
     <!-- Mobile menu (drawer) -->
     <Teleport to="body">
       <div v-if="menuOpen" class="mobile-menu-backdrop" @click="closeMenu"></div>
@@ -226,14 +248,12 @@ watch(() => router.currentRoute.value.fullPath, () => {
           <RouterLink to="/register" @click="closeMenu">Register</RouterLink>
           <RouterLink to="/add-listing" @click="closeMenu">Add Listing</RouterLink>
         </template>
-
         <template v-if="auth.isAuthenticated">
           <div class="menu-sep"></div>
           <button class="menu-logout" @click="logout">Logout</button>
         </template>
       </div>
     </Teleport>
-  </header>
 </template>
 
 <style scoped>
@@ -436,13 +456,87 @@ watch(() => router.currentRoute.value.fullPath, () => {
 /* Mobile: single compact row — avatar + primary actions only */
 @media (max-width: 768px) {
   .topbar { display: none; }
-  .navbar { height: 64px; }
+  .navbar { height: auto; }
   .nav-links { display: none; }
   .nav-end { gap: 10px; }
   .login-link { display: none; }
   .avatar { width: 34px; height: 34px; }
   .nav-end .btn { padding: 9px 14px; font-size: 0.88rem; }
   .logout-btn { font-size: 0.85rem; }
+}
+
+/* Jumia-style sticky mobile header: brand row + full-width search + chips */
+.m-search-row,
+.m-cats {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    background: #fff;
+    border-bottom: 1px solid #eef0f3;
+  }
+  .nav-inner {
+    padding-top: 10px;
+    padding-bottom: 0;
+  }
+  .m-search-row {
+    display: block;
+    padding: 10px 16px 0;
+  }
+  .m-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f4f8;
+    border: 1.5px solid #e5e8ee;
+    border-radius: 999px;
+    padding: 9px 14px;
+    color: var(--color-muted, #888);
+    font-size: 0.9rem;
+  }
+  .m-search:focus-within {
+    background: #fff;
+    border-color: var(--color-primary, #0a84ff);
+  }
+  .m-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    flex: 1;
+    min-width: 0;
+    font-size: 0.9rem;
+  }
+  .m-search-ghost {
+    cursor: pointer;
+  }
+  .m-cats {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 10px 16px 12px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }  .m-cats::-webkit-scrollbar { display: none; }
+  .m-cats a {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1.5px solid #e5e8ee;
+    background: #fff;
+    color: var(--clr-dark, #333);
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .m-cats a.active {
+    background: var(--color-primary, #0a84ff);
+    border-color: var(--color-primary, #0a84ff);
+    color: #fff;
+  }
 }
 
 /* Hamburger (visible on mobile only) */
