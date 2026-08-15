@@ -28,6 +28,7 @@ const results = ref<Property[]>([])
 const meta = ref({ page: 1, pages: 1, total_count: 0, has_next: false, has_prev: false })
 const loading = ref(true)
 const error = ref('')
+const aiNote = ref('')
 const page = ref(1)
 const sheetOpen = ref(false)
 const liveCount = ref<number | null>(null)
@@ -69,15 +70,34 @@ function filterParams(includePage = true): Record<string, unknown> {
 async function load() {
   loading.value = true
   error.value = ''
+  aiNote.value = ''
   try {
     const res = await propertyApi.browse(filterParams())
     results.value = res.data.data
     meta.value = res.data.meta
+    // natural-language fallback: no exact match but a search term was given
+    if (res.data.meta.total_count === 0 && filters.search.trim()) {
+      tryAiSearch(filters.search)
+    }
   } catch {
     error.value = 'We couldn\'t load these properties right now. Please try again.'
     results.value = []
   } finally {
     loading.value = false
+  }
+}
+
+async function tryAiSearch(q: string) {
+  try {
+    const res = await propertyApi.aiSearch(q)
+    if (res.data.meta.total_count > 0) {
+      results.value = res.data.data
+      meta.value = res.data.meta
+      const it = res.data.interpretation
+      aiNote.value = it?.used_ai ? `Interpreted as: ${it.suggested_query}` : ''
+    }
+  } catch {
+    // stay with the empty state
   }
 }
 
@@ -250,12 +270,14 @@ onMounted(load)
           <div v-else-if="!results.length" class="state-box">
             <h3>No properties found</h3>
             <p>We couldn't find a match for those filters.</p>
+            <p class="ai-hint" v-if="aiNote">{{ aiNote }}</p>
             <div class="state-actions">
               <button class="btn btn-primary" @click="reset">Clear filters</button>
               <RouterLink to="/browse-requests" class="btn btn-outline">Post a property request</RouterLink>
             </div>
           </div>
 
+          <p v-if="aiNote" class="ai-bar">{{ aiNote }}</p>
           <div v-else class="grid">
             <PropertyCard v-for="p in results" :key="p.id" :property="p" />
           </div>
@@ -597,6 +619,22 @@ onMounted(load)
   gap: 10px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.ai-bar {
+  background: #eef6ff;
+  border: 1px solid #d3e7ff;
+  color: #1a5fae;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 0 0 18px;
+  font-size: 0.9rem;
+}
+
+.ai-hint {
+  font-size: 0.85rem;
+  color: var(--color-muted, #777);
+  margin-bottom: 16px !important;
 }
 
 .pagination {

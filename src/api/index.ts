@@ -189,6 +189,7 @@ function getVisitorId(): string {
 
 export const propertyApi = {
   browse: (params: Record<string, unknown>) => api.get<Paginated<Property>>('/properties/', { params }),
+  aiSearch: (q: string) => api.post<Paginated<Property> & { interpretation: any }>('/properties/ai-search', { q }),
   get: (id: number) => api.get<Property>(`/properties/${id}`),
   mine: (userId: number, params?: Record<string, unknown>) => api.get<Paginated<Property>>(`/properties/user/${userId}/`, { params }),
   create: (data: Record<string, unknown>) => api.post<Property>('/properties/', data),
