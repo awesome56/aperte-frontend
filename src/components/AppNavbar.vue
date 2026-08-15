@@ -1,11 +1,26 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { unreadCount, on as onStreamEvent } from '@/messaging/stream'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+// vue-router 5 no longer compares query params when deciding link "active"
+// state, so all /listings?… links would light up together. Compute it here:
+// active when the path matches AND every query param of the target is present.
+function isActive(to: string): boolean {
+  const [path, qs] = to.split('?')
+  if (route.path !== path) return false
+  if (!qs) return true
+  const q = new URLSearchParams(qs)
+  for (const [k, v] of q.entries()) {
+    if (route.query[k] !== v) return false
+  }
+  return true
+}
 
 const unread = ref(0)
 
@@ -110,14 +125,14 @@ watch(() => router.currentRoute.value.fullPath, () => {
   <header class="navbar">
     <div class="container nav-inner">
       <nav class="nav-links">
-        <RouterLink to="/" exact-active-class="active">Home</RouterLink>
-        <RouterLink to="/listings?purpose=sale" exact-active-class="active">Buy</RouterLink>
-        <RouterLink to="/listings?purpose=rent" exact-active-class="active">Rent</RouterLink>
-        <RouterLink to="/listings?category=shortlet" exact-active-class="active">Shortlets</RouterLink>
-        <RouterLink to="/listings?category=hotel" exact-active-class="active">Hotels</RouterLink>
-        <RouterLink to="/listings?category=land" exact-active-class="active">Land</RouterLink>
-        <RouterLink to="/listings?category=event_center" exact-active-class="active">Venues</RouterLink>
-        <RouterLink to="/browse-requests" active-class="active">Property Requests</RouterLink>
+        <RouterLink to="/" :class="{ active: isActive('/') }">Home</RouterLink>
+        <RouterLink to="/listings?purpose=sale" :class="{ active: isActive('/listings?purpose=sale') }">Buy</RouterLink>
+        <RouterLink to="/listings?purpose=rent" :class="{ active: isActive('/listings?purpose=rent') }">Rent</RouterLink>
+        <RouterLink to="/listings?category=shortlet" :class="{ active: isActive('/listings?category=shortlet') }">Shortlets</RouterLink>
+        <RouterLink to="/listings?category=hotel" :class="{ active: isActive('/listings?category=hotel') }">Hotels</RouterLink>
+        <RouterLink to="/listings?category=land" :class="{ active: isActive('/listings?category=land') }">Land</RouterLink>
+        <RouterLink to="/listings?category=event_center" :class="{ active: isActive('/listings?category=event_center') }">Venues</RouterLink>
+        <RouterLink to="/browse-requests" :class="{ active: isActive('/browse-requests') }">Property Requests</RouterLink>
       </nav>
 
       <RouterLink to="/" class="brand">Aperte</RouterLink>
