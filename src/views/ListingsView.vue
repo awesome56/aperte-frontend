@@ -19,9 +19,13 @@ const filters = reactive({
   max_price: (route.query.max_price as string) || '',
   bedrooms: (route.query.bedrooms as string) || '',
   bathrooms: (route.query.bathrooms as string) || '',
-  amenities: (route.query.amenities as string) || '',
   available: (route.query.available as string) || '',
 })
+
+// multi-select amenities — must be an array for checkbox v-model to work
+const amenitySel = ref<string[]>(
+  ((route.query.amenities as string) || '').split(',').filter(Boolean),
+)
 
 const sort = ref((route.query.sort as string) || 'newest')
 const results = ref<Property[]>([])
@@ -45,7 +49,7 @@ const SORTS = [
 ]
 
 const activeFilterCount = computed(() =>
-  Object.values(filters).filter((v) => v !== '').length,
+  Object.values(filters).filter((v) => v !== '').length + amenitySel.value.length,
 )
 
 const summaryText = computed(() => {
@@ -65,6 +69,7 @@ function filterParams(includePage = true): Record<string, unknown> {
   Object.entries(filters).forEach(([k, v]) => {
     if (v) params[k] = v
   })
+  if (amenitySel.value.length) params.amenities = amenitySel.value.join(',')
   return params
 }
 
@@ -143,6 +148,7 @@ function apply() {
 
 function reset() {
   Object.keys(filters).forEach((k) => (filters[k as keyof typeof filters] = ''))
+  amenitySel.value = []
   sort.value = 'newest'
   liveCount.value = null
   updateLiveCount()
@@ -155,6 +161,9 @@ watch(() => route.query, () => {
   if (route.query.purpose) filters.purpose = route.query.purpose as string
   if (route.query.city) filters.city = route.query.city as string
   if (route.query.sort) sort.value = route.query.sort as string
+  if (route.query.amenities) {
+    amenitySel.value = (route.query.amenities as string).split(',').filter(Boolean)
+  }
   apply()
 })
 
@@ -251,7 +260,7 @@ onMounted(load)
             <label>Amenities</label>
             <div class="amenity-list">
               <label v-for="a in AMENITY_OPTIONS" :key="a" class="amenity">
-                <input v-model="filters.amenities" type="checkbox" :value="a" @change="apply" />
+                <input v-model="amenitySel" type="checkbox" :value="a" @change="apply" />
                 <span>{{ a.replace('_', ' ') }}</span>
               </label>
             </div>
@@ -366,7 +375,7 @@ onMounted(load)
             <label>Amenities</label>
             <div class="amenity-list">
               <label v-for="a in AMENITY_OPTIONS" :key="a" class="amenity">
-                <input v-model="filters.amenities" type="checkbox" :value="a" @change="updateLiveCount" />
+                <input v-model="amenitySel" type="checkbox" :value="a" @change="updateLiveCount" />
                 <span>{{ a.replace('_', ' ') }}</span>
               </label>
             </div>
