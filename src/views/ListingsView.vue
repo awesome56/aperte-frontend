@@ -29,6 +29,7 @@ const meta = ref({ page: 1, pages: 1, total_count: 0, has_next: false, has_prev:
 const loading = ref(true)
 const error = ref('')
 const aiNote = ref('')
+const aiLoading = ref(false)
 const page = ref(1)
 const sheetOpen = ref(false)
 const liveCount = ref<number | null>(null)
@@ -88,6 +89,7 @@ async function load() {
 }
 
 async function tryAiSearch(q: string) {
+  aiLoading.value = true
   try {
     const res = await propertyApi.aiSearch(q)
     if (res.data.meta.total_count > 0) {
@@ -98,6 +100,8 @@ async function tryAiSearch(q: string) {
     }
   } catch {
     // stay with the empty state
+  } finally {
+    aiLoading.value = false
   }
 }
 
@@ -265,6 +269,14 @@ onMounted(load)
             <h3>Something went wrong</h3>
             <p>{{ error }}</p>
             <button class="btn btn-primary" @click="load">Try Again</button>
+          </div>
+
+          <div v-else-if="aiLoading" class="state-box">
+            <div class="ai-thinking">
+              <span class="ai-spin"></span>
+              <h3>Interpreting your search…</h3>
+              <p>Looking for the best matches.</p>
+            </div>
           </div>
 
           <div v-else-if="!results.length" class="state-box">
@@ -635,6 +647,21 @@ onMounted(load)
   font-size: 0.85rem;
   color: var(--color-muted, #777);
   margin-bottom: 16px !important;
+}
+
+.ai-spin {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #d3e7ff;
+  border-top-color: var(--color-primary, #0a84ff);
+  border-radius: 50%;
+  animation: ai-rotate 0.8s linear infinite;
+  margin-bottom: 14px;
+}
+
+@keyframes ai-rotate {
+  to { transform: rotate(360deg); }
 }
 
 .pagination {
