@@ -145,7 +145,7 @@ watch(() => router.currentRoute.value.fullPath, () => {
       <RouterLink to="/" class="brand">Aperte</RouterLink>
 
       <div class="nav-end">
-        <form class="nav-search" @submit.prevent="goSearch">
+        <form v-if="route.path !== '/listings'" class="nav-search" @submit.prevent="goSearch">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="ns-icon"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input v-model="searchQuery" type="text" placeholder="Search properties…" class="ns-input" aria-label="Search properties" />
         </form>
