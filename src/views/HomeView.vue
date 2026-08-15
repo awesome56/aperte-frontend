@@ -33,6 +33,9 @@ function goSearch() {
 function quickSearch(label: string) {
   const m = MODES.find((x) => x.key === mode.value)!
   router.push({ path: '/listings', query: { ...m.query, search: label } })
+  import('@/analytics/tracker').then((t) =>
+    t.default.trackEvent('home_suggestion', 'search', { term: label, mode: mode.value }),
+  )
 }
 
 const SUGGESTIONS = [
@@ -113,6 +116,9 @@ onMounted(async () => {
 })
 
 watch(mode, () => {
+  import('@/analytics/tracker').then((t) =>
+    t.default.trackEvent('home_mode', 'search', { mode: mode.value }),
+  )
   loading.value = true
   loadSections().finally(() => (loading.value = false))
 })
@@ -468,8 +474,7 @@ watch(mode, () => {
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  padding: 4px 16px 10px;
-  margin: 0 -16px;
+  padding: 4px 0 10px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
