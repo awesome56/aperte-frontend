@@ -749,6 +749,27 @@ export function formatPrice(price: number | null | undefined, currency?: string 
   return `${currencySymbol(currency)}${n}`
 }
 
+// Compact marketplace price: ₦8.5M, ₦450K, ₦1.2B — for cards where space is tight.
+export function formatPriceCompact(price: number | null | undefined, currency?: string | null): string {
+  if (price == null) return '—'
+  if (price === 0) return 'Price on request'
+  const sym = currencySymbol(currency)
+  const p = Number(price)
+  if (p >= 1_000_000_000) {
+    const v = p / 1_000_000_000
+    return `${sym}${v >= 10 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, '')}B`
+  }
+  if (p >= 1_000_000) {
+    const v = p / 1_000_000
+    return `${sym}${v >= 10 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, '')}M`
+  }
+  if (p >= 1_000) {
+    const v = p / 1_000
+    return `${sym}${v >= 10 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, '')}K`
+  }
+  return `${sym}${p}`
+}
+
 // Price period label so rent/stay prices are unambiguous.
 export function pricePeriod(category?: string, purpose?: string): string {
   if (category === 'hotel' || category === 'shortlet') return '/night'

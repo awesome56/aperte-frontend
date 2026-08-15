@@ -44,6 +44,7 @@ const AMENITY_OPTIONS = ['furnished', 'parking', 'security', 'ac', 'backup_power
 const SORTS = [
   { key: 'newest', label: 'Newest first' },
   { key: 'popular', label: 'Most viewed' },
+  { key: 'favorites', label: 'Most saved' },
   { key: 'price_asc', label: 'Price: low to high' },
   { key: 'price_desc', label: 'Price: high to low' },
 ]

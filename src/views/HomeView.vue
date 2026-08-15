@@ -1,219 +1,266 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { propertyApi, type Property } from '@/api'
 import PropertyCard from '@/components/PropertyCard.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
+import { recentlyViewed } from '@/composables/recentlyViewed'
 
 const router = useRouter()
 
-// guided search
-const looking = ref('rent') // rent | buy | shortlet | hotel | venue | office | commercial | land
-const city = ref('')
-const budgetMin = ref('')
-const budgetMax = ref('')
+// ---------- BUY | RENT | SHORTLET segmented control ----------
+const MODES = [
+  { key: 'sale', label: 'BUY', query: { purpose: 'sale' } },
+  { key: 'rent', label: 'RENT', query: { purpose: 'rent' } },
+  { key: 'shortlet', label: 'SHORTLET', query: { category: 'shortlet' } },
+] as const
+const mode = ref<(typeof MODES)[number]['key']>('rent')
 
-const LOOKING_OPTIONS = [
-  { key: 'rent', label: 'Rent', purpose: 'rent', category: '' },
-  { key: 'buy', label: 'Buy', purpose: 'sale', category: '' },
-  { key: 'land', label: 'Land', purpose: '', category: 'land' },
-  { key: 'shortlet', label: 'Shortlet', purpose: '', category: 'shortlet' },
-  { key: 'hotel', label: 'Hotel', purpose: '', category: 'hotel' },
-  { key: 'venue', label: 'Event Venue', purpose: '', category: 'event_center' },
-  { key: 'office', label: 'Office', purpose: '', category: 'property' },
-  { key: 'commercial', label: 'Commercial', purpose: '', category: 'property' },
+// ---------- search ----------
+const q = ref('')
+
+function goSearch() {
+  const m = MODES.find((x) => x.key === mode.value)!
+  const query: Record<string, string> = { ...m.query }
+  if (q.value.trim()) query.search = q.value.trim()
+  router.push({ path: '/listings', query })
+  import('@/analytics/tracker').then((t) =>
+    t.default.trackEvent('home_search', 'search', { query: q.value, mode: mode.value }),
+  )
+}
+
+function quickSearch(label: string) {
+  const m = MODES.find((x) => x.key === mode.value)!
+  router.push({ path: '/listings', query: { ...m.query, search: label } })
+}
+
+const SUGGESTIONS = [
+  '2 bedroom flat in Ibadan',
+  'Hotels in Bodija',
+  'Land for sale in Akobo',
+  'Shortlet in Jericho',
+  'Venue for rent',
 ]
 
-const CITIES = ['Lagos', 'Abuja', 'Port Harcourt', 'Ibadan', 'Benin City', 'Enugu', 'Kano', 'Owerri', 'Abeokuta', 'Onitsha']
-
-// sections
-const popular = ref<Property[]>([])
+// ---------- sections ----------
+const featured = ref<Property[]>([])
+const affordable = ref<Property[]>([])
 const newListings = ref<Property[]>([])
 const stays = ref<Property[]>([])
 const loading = ref(true)
-const totalListings = ref(0)
 
-const categories = ref<{ key: string; label: string; img: string; count: number }[]>([
-  { key: 'property', label: 'Homes & Offices', img: '/images/area1.jpg', count: 0 },
-  { key: 'land', label: 'Land', img: '/images/area2.jpg', count: 0 },
-  { key: 'hotel', label: 'Hotels', img: '/images/area3.jpg', count: 0 },
-  { key: 'shortlet', label: 'Shortlets', img: '/images/area1.jpg', count: 0 },
-  { key: 'hall', label: 'Halls', img: '/images/area2.jpg', count: 0 },
-  { key: 'event_center', label: 'Event Venues', img: '/images/area3.jpg', count: 0 },
+const categories = ref<{ key: string; label: string; icon: string; count: number }[]>([
+  { key: 'property', label: 'Homes & Offices', icon: '🏢', count: 0 },
+  { key: 'land', label: 'Land', icon: '🌳', count: 0 },
+  { key: 'shortlet', label: 'Shortlets', icon: '🛏️', count: 0 },
+  { key: 'hotel', label: 'Hotels', icon: '🏨', count: 0 },
+  { key: 'hall', label: 'Halls', icon: '🎉', count: 0 },
+  { key: 'event_center', label: 'Event Venues', icon: '🎪', count: 0 },
 ])
 
-const locationImages = ['/images/area1.jpg', '/images/area2.jpg', '/images/area3.jpg', '/images/area1.jpg', '/images/area2.jpg', '/images/area3.jpg']
-const locations = CITIES.slice(0, 6).map((name, i) => ({ name, img: locationImages[i] }))
+const CITIES = ['Lagos', 'Abuja', 'Ibadan', 'Port Harcourt', 'Benin City', 'Enugu']
+const locations = ref<{ name: string; img: string; count: number }[]>([])
 
-function search() {
-  const opt = LOOKING_OPTIONS.find((o) => o.key === looking.value)
-  const query: Record<string, string> = { purpose: opt?.purpose || '', category: opt?.category || '' }
-  if (city.value) query.city = city.value
-  if (budgetMin.value) query.min_price = budgetMin.value
-  if (budgetMax.value) query.max_price = budgetMax.value
-  router.push({ path: '/listings', query })
-  import('@/analytics/tracker').then((m) =>
-    m.default.trackEvent('home_search', 'search', { looking: looking.value, city: city.value, has_budget: Boolean(budgetMin.value || budgetMax.value) }),
-  )
+function modeParams(extra: Record<string, unknown> = {}) {
+  const m = MODES.find((x) => x.key === mode.value)!
+  return { ...m.query, ...extra }
+}
+
+async function loadSections() {
+  try {
+    const [featRes, affRes, newRes] = await Promise.all([
+      propertyApi.browse(modeParams({ sort: 'popular', per_page: 8 })),
+      propertyApi.browse(modeParams({ max_price: 10000000, per_page: 8 })),
+      propertyApi.browse(modeParams({ sort: 'newest', per_page: 8 })),
+    ])
+    featured.value = featRes.data.data
+    affordable.value = affRes.data.data
+    newListings.value = newRes.data.data
+  } catch {
+    // keep sections empty
+  }
 }
 
 onMounted(async () => {
   try {
-    const [popularRes, newRes, staysRes, staysRes2, ...catRes] = await Promise.all([
-      propertyApi.browse({ sort: 'popular', per_page: 6 }),
-      propertyApi.browse({ sort: 'newest', per_page: 6 }),
+    const catRes = (await Promise.all([
+      propertyApi.browse({ per_page: 1 }),
       propertyApi.browse({ category: 'hotel', per_page: 3 }),
       propertyApi.browse({ category: 'shortlet', per_page: 3 }),
-      propertyApi.browse({ per_page: 1 }),
       ...categories.value.map((c) => propertyApi.browse({ category: c.key, per_page: 1 })),
-    ])
-    popular.value = popularRes.data.data
-    newListings.value = newRes.data.data
-    stays.value = [...staysRes.data.data, ...staysRes2.data.data]
-    totalListings.value = catRes[0].data.meta.total_count
-    categories.value = categories.value.map((c, i) => ({ ...c, count: catRes[i + 1]?.data.meta.total_count ?? 0 }))
+      ...CITIES.map((c) => propertyApi.browse({ city: c, per_page: 1 })),
+    ])) as any[]
+    categories.value = categories.value.map((c, i) => ({
+      ...c,
+      count: catRes[i + 2]?.data.meta.total_count ?? 0,
+    }))
+    stays.value = [...(catRes[1]?.data?.data ?? []), ...(catRes[2]?.data?.data ?? [])]
+    locations.value = CITIES.map((name, i) => {
+      const r = catRes[i + 8]
+      const p = r?.data?.data?.[0]
+      return {
+        name,
+        img: p?.dp || '',
+        count: r?.data?.meta?.total_count ?? 0,
+      }
+    })
   } catch {
-    // keep empty sections
-  } finally {
-    loading.value = false
+    // keep defaults
   }
+  await loadSections()
+  loading.value = false
+})
+
+watch(mode, () => {
+  loading.value = true
+  loadSections().finally(() => (loading.value = false))
 })
 </script>
 
 <template>
-  <main>
-    <!-- ============ HERO ============ -->
+  <main class="home">
+    <!-- ============ HERO / SEARCH ============ -->
     <section class="hero">
       <div class="container hero-inner">
         <div class="hero-copy">
           <h1 class="hero-title">Find a place you'll love.</h1>
-          <p class="hero-sub">Homes • Land • Offices • Stays • Venues</p>
-          <p class="hero-desc">
-            Aperte connects Nigerian property owners, agents, travelers and seekers — rent, buy or book
-            with no middlemen.
-          </p>
+          <p class="hero-sub">Buy • Rent • Shortlets • Hotels • Venues</p>
         </div>
-        <div class="hero-art"><img src="/images/hero.jpg" alt="A property in Nigeria" /></div>
-      </div>
 
-      <!-- guided search -->
-      <div class="container search-card-wrap">
-        <div class="search-card">
-          <div class="search-step">
-            <span class="step-label">What are you looking for?</span>
-            <div class="chip-row">
-              <button
-                v-for="o in LOOKING_OPTIONS"
-                :key="o.key"
-                class="chip"
-                :class="{ active: looking === o.key }"
-                @click="looking = o.key"
-              >{{ o.label }}</button>
-            </div>
-          </div>
-          <div class="search-step">
-            <span class="step-label">Where?</span>
-            <div class="chip-row">
-              <button
-                v-for="c in CITIES"
-                :key="c"
-                class="chip"
-                :class="{ active: city === c }"
-                @click="city = city === c ? '' : c"
-              >{{ c }}</button>
-            </div>
-          </div>
-          <div class="search-step">
-            <span class="step-label">Budget (₦/year or ₦/night)</span>
-            <div class="budget-row">
-              <input v-model="budgetMin" type="number" min="0" placeholder="Min" />
-              <span class="dash">–</span>
-              <input v-model="budgetMax" type="number" min="0" placeholder="Max" />
-            </div>
-          </div>
-          <button class="btn btn-primary search-btn" @click="search">Search</button>
-        </div>
-      </div>
+        <form class="home-search" @submit.prevent="goSearch">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input v-model="q" type="text" :placeholder="`Search ${MODES.find((m) => m.key === mode)?.label.toLowerCase()} properties, areas…`" aria-label="Search properties" />
+          <button type="submit" class="btn btn-primary hs-btn">Search</button>
+        </form>
 
-      <div class="container hero-stats">
-        <div class="stat">
-          <span class="hs-val">{{ totalListings.toLocaleString() }}+</span>
-          <span class="hs-lbl">Live listings</span>
-        </div>
-        <div class="stat">
-          <span class="hs-val">Rent · Buy · Book</span>
-          <span class="hs-lbl">Homes, land, stays &amp; venues</span>
-        </div>
-        <div class="stat">
-          <span class="hs-val">Direct</span>
-          <span class="hs-lbl">Message owners, no middlemen</span>
+        <div class="suggest-chips">
+          <span class="sc-label">Try:</span>
+          <button v-for="s in SUGGESTIONS" :key="s" class="sc-chip" @click="quickSearch(s)">{{ s }}</button>
         </div>
       </div>
     </section>
 
-    <!-- ============ POPULAR IN NIGERIA ============ -->
+    <!-- ============ BUY | RENT | SHORTLET ============ -->
+    <section class="container seg-wrap">
+      <div class="seg">
+        <button
+          v-for="m in MODES"
+          :key="m.key"
+          :class="{ active: mode === m.key }"
+          @click="mode = m.key"
+        >{{ m.label }}</button>
+      </div>
+    </section>
+
+    <!-- ============ CATEGORIES ============ -->
+    <section class="container">
+      <SectionHeading label="Explore" title="Categories" />
+      <div class="cat-row">
+        <RouterLink
+          v-for="c in categories"
+          :key="c.key"
+          :to="{ path: '/listings', query: { ...(MODES.find((m) => m.key === mode)?.query as object), category: c.key } }"
+          class="cat-tile"
+        >
+          <span class="cat-icon">{{ c.icon }}</span>
+          <span class="cat-label">{{ c.label }}</span>
+          <span class="cat-count">{{ c.count.toLocaleString() }}</span>
+        </RouterLink>
+      </div>
+    </section>
+
+    <!-- ============ FEATURED PROPERTIES ============ -->
     <section class="section">
       <div class="container">
-        <SectionHeading label="Trending" title="Popular in Nigeria" link="/listings?sort=popular" />
-        <div v-if="loading" class="grid"><SkeletonCard v-for="i in 6" :key="i" /></div>
-        <div v-else-if="popular.length" class="grid">
-          <PropertyCard v-for="p in popular" :key="p.id" :property="p" />
+        <SectionHeading label="Handpicked" title="Featured Properties" link="/listings?sort=popular" />
+        <div v-if="loading" class="h-scroll">
+          <SkeletonCard v-for="i in 3" :key="i" class="h-card-skeleton" />
+        </div>
+        <div v-else-if="featured.length" class="h-scroll">
+          <PropertyCard v-for="p in featured" :key="p.id" :property="p" class="h-card" />
         </div>
         <div v-else class="empty">New listings are on the way — be the first to post one.</div>
       </div>
     </section>
 
-    <!-- ============ EXPLORE BY CATEGORY ============ -->
+    <!-- ============ UNDER ₦10M ============ -->
     <section class="section alt">
       <div class="container">
-        <SectionHeading label="Explore" title="Browse by category" />
-        <div class="cat-grid">
-          <RouterLink v-for="c in categories" :key="c.key" :to="`/listings?category=${c.key}`" class="cat-card">
-            <img :src="c.img" :alt="c.label" loading="lazy" />
-            <div class="cat-info">
-              <strong>{{ c.label }}</strong>
-              <span>{{ c.count }} listings</span>
-            </div>
-          </RouterLink>
+        <SectionHeading label="Budget picks" title="Properties Under ₦10M" link="/listings?max_price=10000000" />
+        <div v-if="loading" class="h-scroll">
+          <SkeletonCard v-for="i in 3" :key="i" class="h-card-skeleton" />
         </div>
+        <div v-else-if="affordable.length" class="h-scroll">
+          <PropertyCard v-for="p in affordable" :key="p.id" :property="p" class="h-card" />
+        </div>
+        <div v-else class="empty">No properties in this range yet.</div>
       </div>
     </section>
 
     <!-- ============ POPULAR LOCATIONS ============ -->
     <section class="section">
       <div class="container">
-        <SectionHeading label="Locations" title="Popular in your area" link="/listings" />
-        <div class="loc-grid">
-          <RouterLink v-for="l in locations" :key="l.name" :to="`/listings?city=${encodeURIComponent(l.name)}`" class="loc-card">
-            <img :src="l.img" :alt="l.name" loading="lazy" />
-            <strong>{{ l.name }}</strong>
+        <SectionHeading label="Locations" title="Popular areas" link="/listings" />
+        <div class="h-scroll">
+          <RouterLink
+            v-for="l in locations"
+            :key="l.name"
+            :to="`/listings?city=${encodeURIComponent(l.name)}`"
+            class="loc-tile"
+          >
+            <div class="loc-img-wrap">
+              <img v-if="l.img" :src="l.img" :alt="l.name" loading="lazy" />
+              <span v-else class="loc-fallback">{{ l.name[0] }}</span>
+            </div>
+            <div class="loc-info">
+              <strong>{{ l.name }}</strong>
+              <span>{{ l.count.toLocaleString() }} properties</span>
+            </div>
           </RouterLink>
         </div>
       </div>
     </section>
 
-    <!-- ============ NEW LISTINGS ============ -->
+    <!-- ============ NEWLY LISTED ============ -->
     <section class="section alt">
       <div class="container">
         <SectionHeading label="Just listed" title="New listings" link="/listings?sort=newest" />
-        <div v-if="loading" class="grid"><SkeletonCard v-for="i in 6" :key="i" /></div>
+        <div v-if="loading" class="grid">
+          <SkeletonCard v-for="i in 4" :key="i" />
+        </div>
         <div v-else-if="newListings.length" class="grid">
-          <PropertyCard v-for="p in newListings" :key="p.id" :property="p" />
+          <PropertyCard v-for="p in newListings.slice(0, 4)" :key="p.id" :property="p" />
         </div>
         <div v-else class="empty">No new listings yet.</div>
       </div>
     </section>
 
+    <!-- ============ RECENTLY VIEWED ============ -->
+    <section v-if="recentlyViewed.length" class="section">
+      <div class="container">
+        <SectionHeading label="Pick up where you left off" title="Recently viewed" link="/favorites" />
+        <div class="h-scroll">
+          <PropertyCard
+            v-for="r in recentlyViewed.slice(0, 8)"
+            :key="r.id"
+            :property="{
+              id: r.id, title: r.title, dp: r.dp, price: r.price, currency: r.currency,
+              city: r.city, state: r.state, category: r.category, purpose: r.purpose,
+            } as unknown as Property"
+            class="h-card"
+          />
+        </div>
+      </div>
+    </section>
+
     <!-- ============ SHORTLETS & STAYS ============ -->
-    <section class="section">
+    <section v-if="stays.length" class="section alt">
       <div class="container">
         <SectionHeading label="Hospitality" title="Shortlets, hotels & venues" link="/listings?category=shortlet" />
-        <div v-if="loading" class="grid"><SkeletonCard v-for="i in 3" :key="i" height="280px" /></div>
-        <div v-else-if="stays.length" class="grid stay-grid">
-          <PropertyCard v-for="p in stays.slice(0, 3)" :key="p.id" :property="p" />
+        <div class="h-scroll">
+          <PropertyCard v-for="p in stays.slice(0, 6)" :key="p.id" :property="p" class="h-card" />
         </div>
-        <div v-else class="empty">Bookable stays are coming soon.</div>
       </div>
     </section>
 
@@ -247,163 +294,249 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* --------- HERO --------- */
+/* ---------- hero ---------- */
 .hero {
   background: linear-gradient(180deg, #f5f8ff 0%, #fff 100%);
-  padding: 48px 0 20px;
-}
-
-.hero-inner {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 48px;
-  align-items: center;
+  padding: 28px 0 18px;
 }
 
 .hero-title {
-  font-size: clamp(2.4rem, 5vw, 3.8rem);
+  font-size: clamp(1.8rem, 5vw, 3rem);
   font-weight: 700;
-  line-height: 1.08;
+  line-height: 1.1;
   color: var(--clr-black, #111);
   letter-spacing: -0.02em;
+  margin: 0 0 6px;
 }
 
 .hero-sub {
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--clr-blue2, #0a84ff);
-  margin: 10px 0 14px;
+  margin: 0 0 16px;
   letter-spacing: 0.02em;
 }
 
-.hero-desc {
-  color: var(--clr-muted, #555);
-  font-size: 1rem;
-  max-width: 460px;
-  line-height: 1.6;
-}
-
-.hero-art {
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 24px 60px rgba(10, 60, 120, 0.16);
-}
-
-.hero-art img {
-  width: 100%;
-  height: 380px;
-  object-fit: cover;
-}
-
-/* guided search */
-.search-card-wrap {
-  margin-top: 36px;
-}
-
-.search-card {
-  background: #fff;
-  border: 1px solid #e8ecf3;
-  border-radius: 16px;
-  box-shadow: 0 16px 40px rgba(20, 40, 80, 0.08);
-  padding: 22px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.step-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--clr-muted, #666);
-  margin-bottom: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chip {
-  padding: 9px 16px;
-  border-radius: 24px;
-  border: 1.5px solid var(--clr-line, #e5e8ee);
-  background: #fff;
-  color: var(--clr-dark, #333);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.chip:hover {
-  border-color: var(--clr-blue, #0a84ff);
-  color: var(--clr-blue, #0a84ff);
-}
-
-.chip.active {
-  background: var(--clr-blue, #0a84ff);
-  border-color: var(--clr-blue, #0a84ff);
-  color: #fff;
-}
-
-.budget-row {
+.home-search {
   display: flex;
   align-items: center;
-  gap: 10px;
-  max-width: 360px;
+  gap: 8px;
+  background: #fff;
+  border: 1.5px solid #e5e8ee;
+  border-radius: 12px;
+  padding: 6px 6px 6px 14px;
+  box-shadow: 0 4px 18px rgba(16, 30, 60, 0.06);
 }
 
-.budget-row input {
+.home-search:focus-within {
+  border-color: var(--color-primary, #0a84ff);
+}
+
+.home-search svg {
+  color: var(--color-muted, #888);
+  flex-shrink: 0;
+}
+
+.home-search input {
   flex: 1;
-  border: 1.5px solid var(--clr-line, #e5e8ee);
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 1rem;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.95rem;
   min-width: 0;
 }
 
-.budget-row .dash {
-  color: var(--clr-muted, #888);
+.hs-btn {
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  border-radius: 10px;
 }
 
-.search-btn {
-  align-self: flex-start;
-  padding: 10px 24px;
-  font-size: 0.95rem;
-}
-
-/* stats */
-.hero-stats {
+/* ---------- suggestions ---------- */
+.suggest-chips {
   display: flex;
-  gap: 48px;
-  padding: 36px 0 30px;
-  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 12px 0 4px;
+  scrollbar-width: none;
 }
 
-.stat {
+.suggest-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.sc-label {
+  font-size: 0.78rem;
+  color: var(--color-muted, #888);
+  flex-shrink: 0;
+}
+
+.sc-chip {
+  flex-shrink: 0;
+  border: 1px solid #e5e8ee;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  color: var(--clr-dark, #333);
+  white-space: nowrap;
+}
+
+/* ---------- segmented control ---------- */
+.seg-wrap {
+  padding-top: 14px;
+  padding-bottom: 0;
+}
+
+.seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: #eef1f6;
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.seg button {
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  padding: 11px 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #555;
+  transition: all 0.15s;
+}
+
+.seg button.active {
+  background: #fff;
+  color: var(--color-primary, #0a84ff);
+  box-shadow: 0 2px 8px rgba(16, 30, 60, 0.1);
+}
+
+/* ---------- category tiles ---------- */
+.cat-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+  scrollbar-width: none;
+}
+
+.cat-row::-webkit-scrollbar {
+  display: none;
+}
+
+.cat-tile {
+  flex: 0 0 110px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  background: #fff;
+  border: 1px solid #eef0f3;
+  border-radius: 14px;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.15s;
 }
 
-.hs-val {
-  font-size: 1.5rem;
-  font-weight: 700;
+.cat-tile:active {
+  transform: scale(0.97);
+}
+
+.cat-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.cat-label {
+  font-size: 0.82rem;
+  font-weight: 600;
   color: var(--clr-dark, #222);
 }
 
-.hs-lbl {
-  color: var(--clr-muted, #666);
-  font-size: 0.9rem;
+.cat-count {
+  font-size: 0.72rem;
+  color: var(--color-muted, #888);
 }
 
-/* --------- SECTIONS --------- */
+/* ---------- horizontal scroll sections ---------- */
+.h-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 16px 10px;
+  margin: 0 -16px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.h-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.h-scroll :deep(.card) {
+  flex: 0 0 250px;
+  scroll-snap-align: start;
+}
+
+.h-scroll :deep(.h-card-skeleton) {
+  flex: 0 0 250px;
+}
+
+/* ---------- location tiles ---------- */
+.loc-tile {
+  flex: 0 0 130px;
+  display: block;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #eef0f3;
+  background: #fff;
+}
+
+.loc-img-wrap {
+  height: 90px;
+  overflow: hidden;
+  background: #eef1f6;
+}
+
+.loc-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.loc-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #b9c2d0;
+}
+
+.loc-info {
+  padding: 8px 10px 10px;
+}
+
+.loc-info strong {
+  display: block;
+  font-size: 0.88rem;
+  color: var(--clr-dark, #222);
+}
+
+.loc-info span {
+  font-size: 0.72rem;
+  color: var(--color-muted, #888);
+}
+
+/* ---------- sections ---------- */
 .section {
-  padding: 56px 0;
+  padding: 34px 0;
 }
 
 .section.alt {
@@ -413,244 +546,97 @@ onMounted(async () => {
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-
-.stay-grid {
-  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
 }
 
 .empty {
   text-align: center;
-  color: var(--clr-muted, #888);
+  color: var(--color-muted, #888);
+  padding: 30px 0;
+  font-size: 0.95rem;
+}
+
+/* ---------- promos ---------- */
+.promo-inner {
   padding: 40px 0;
 }
 
-/* categories */
-.cat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.cat-card {
-  position: relative;
-  border-radius: 14px;
-  overflow: hidden;
-  height: 210px;
-  display: block;
-}
-
-.cat-card img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.35s;
-}
-
-.cat-card:hover img {
-  transform: scale(1.05);
-}
-
-.cat-info {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 40px 16px 14px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
-  color: #fff;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.cat-info strong {
-  font-size: 1.05rem;
-}
-
-.cat-info span {
-  font-size: 0.82rem;
-  opacity: 0.9;
-}
-
-/* locations */
-.loc-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.loc-card {
-  position: relative;
-  border-radius: 14px;
-  overflow: hidden;
-  height: 170px;
-  display: block;
-}
-
-.loc-card img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.35s;
-}
-
-.loc-card:hover img {
-  transform: scale(1.05);
-}
-
-.loc-card strong {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 30px 14px 12px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.68));
-  color: #fff;
-  font-size: 1rem;
-}
-
-/* promos */
-.promo {
-  padding: 56px 0;
-}
-
-.promo-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 30px;
-  border-radius: 18px;
-  padding: 40px 44px;
-  flex-wrap: wrap;
-}
-
-.requests-promo .promo-inner {
-  background: linear-gradient(120deg, #eaf3ff, #f5f0ff);
-}
-
-.owner-promo .promo-inner {
-  background: var(--clr-purple-btn, #4b2a85);
-}
-
 .promo h2 {
-  font-size: clamp(1.4rem, 2.5vw, 2rem);
-  font-weight: 700;
-  color: var(--clr-dark, #1c1c1c);
-  margin: 4px 0 8px;
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  margin: 6px 0 8px;
 }
 
 .promo p {
-  color: var(--clr-muted, #555);
+  color: #444;
   max-width: 520px;
-  line-height: 1.6;
-}
-
-.section-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--clr-blue2, #0a84ff);
-}
-
-.owner-promo h2,
-.owner-promo p {
-  color: #fff;
-}
-
-.owner-promo .section-label {
-  color: #b9a6e8;
 }
 
 .promo-actions {
   display: flex;
   gap: 12px;
+  margin-top: 18px;
   flex-wrap: wrap;
 }
 
-.promo-actions .btn {
-  padding: 10px 24px;
-  font-size: 0.92rem;
+.requests-promo {
+  background: linear-gradient(120deg, #eef4ff, #e7edfb);
 }
 
-.btn-light {
-  background: #fff;
-  color: var(--clr-purple-btn, #4b2a85);
-  font-weight: 600;
-  padding: 10px 24px;
-  font-size: 0.92rem;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
+.owner-promo {
+  background: #151a24;
+  color: #fff;
 }
 
-.btn-light:hover {
-  background: #efe9fb;
+.owner-promo p {
+  color: #b7bfcc;
 }
 
-/* --------- RESPONSIVE --------- */
-@media (max-width: 1000px) {
+/* ---------- responsive ---------- */
+@media (min-width: 769px) {
+  .hero {
+    padding: 48px 0 24px;
+  }
   .hero-inner {
-    grid-template-columns: 1fr;
-  }
-  .hero-art img {
-    height: 280px;
+    max-width: 640px;
   }
 }
 
-@media (max-width: 800px) {
-  .grid,
-  .cat-grid,
-  .loc-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  .search-btn {
-    width: 100%;
-  }
-}
-
-/* Compact Jumia-style mobile home */
 @media (max-width: 768px) {
   .hero {
-    padding: 26px 0 8px;
-  }
-  .hero-title {
-    font-size: clamp(1.7rem, 6vw, 2.2rem);
-  }
-  .hero-art {
-    display: none;
-  }
-  .hero-stats {
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 18px;
+    padding: 20px 0 8px;
   }
   .section {
-    padding: 30px 0;
+    padding: 26px 0;
+  }
+  .h-scroll {
+    margin: 0 -16px;
+    padding: 4px 16px 10px;
+  }
+  .h-scroll :deep(.card) {
+    flex: 0 0 62vw;
+    max-width: 240px;
   }
 }
 
 @media (max-width: 600px) {
-  .grid,
-  .cat-grid,
-  .loc-grid {
+  .grid {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
-  .hero-stats .stat:not(:first-child) {
-    display: none;
-  }
   .promo-inner {
-    padding: 28px 22px;
+    padding: 28px 0;
+  }
+  .hs-btn {
+    padding: 10px 14px;
   }
 }
 
 @media (max-width: 400px) {
-  .grid,
-  .cat-grid,
-  .loc-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+  .h-scroll :deep(.card) {
+    flex: 0 0 66vw;
+  }
+  .cat-tile {
+    flex: 0 0 100px;
   }
 }
 </style>
