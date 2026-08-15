@@ -278,7 +278,7 @@ onMounted(load)
           </div>
 
           <p v-if="aiNote" class="ai-bar">{{ aiNote }}</p>
-          <div v-else class="grid">
+          <div class="grid">
             <PropertyCard v-for="p in results" :key="p.id" :property="p" />
           </div>
 
