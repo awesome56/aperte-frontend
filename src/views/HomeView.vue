@@ -64,6 +64,14 @@ const categories = ref<{ key: string; label: string; icon: string; img: string; 
 ])
 
 const CITIES = ['Lagos', 'Abuja', 'Ibadan', 'Port Harcourt', 'Benin City', 'Enugu']
+const CITY_LANDMARKS: Record<string, string> = {
+  Lagos: '/images/landmarks/lagos.jpg',
+  Abuja: '/images/landmarks/abuja.jpg',
+  Ibadan: '/images/landmarks/ibadan.jpg',
+  'Port Harcourt': '/images/landmarks/port-harcourt.jpg',
+  'Benin City': '/images/landmarks/benin-city.jpg',
+  Enugu: '/images/landmarks/enugu.jpg',
+}
 const locations = ref<{ name: string; img: string; count: number }[]>([])
 
 function modeParams(extra: Record<string, unknown> = {}) {
@@ -103,10 +111,9 @@ onMounted(async () => {
     stays.value = [...(catRes[1]?.data?.data ?? []), ...(catRes[2]?.data?.data ?? [])]
     locations.value = CITIES.map((name, i) => {
       const r = catRes[i + 9]
-      const p = r?.data?.data?.[0]
       return {
         name,
-        img: p?.dp || '',
+        img: CITY_LANDMARKS[name] || '',
         count: r?.data?.meta?.total_count ?? 0,
       }
     })
