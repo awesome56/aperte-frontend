@@ -123,7 +123,7 @@ watch(() => router.currentRoute.value.fullPath, () => {
       <div class="tb-right">
         <span>Mon – Sat: 9:00 AM – 6:00 PM</span>
         <span class="dot">·</span>
-        <span>support@awesometech.com.ng</span>
+        <span>oluwaseunawe@awesometech.com.ng</span>
       </div>
     </div>
   </div>

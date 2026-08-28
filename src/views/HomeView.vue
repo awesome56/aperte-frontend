@@ -52,14 +52,15 @@ const affordable = ref<Property[]>([])
 const newListings = ref<Property[]>([])
 const stays = ref<Property[]>([])
 const loading = ref(true)
+const totalListings = ref(0)
 
-const categories = ref<{ key: string; label: string; icon: string; count: number }[]>([
-  { key: 'property', label: 'Homes & Offices', icon: '🏢', count: 0 },
-  { key: 'land', label: 'Land', icon: '🌳', count: 0 },
-  { key: 'shortlet', label: 'Shortlets', icon: '🛏️', count: 0 },
-  { key: 'hotel', label: 'Hotels', icon: '🏨', count: 0 },
-  { key: 'hall', label: 'Halls', icon: '🎉', count: 0 },
-  { key: 'event_center', label: 'Event Venues', icon: '🎪', count: 0 },
+const categories = ref<{ key: string; label: string; icon: string; img: string; count: number }[]>([
+  { key: 'property', label: 'Homes & Offices', icon: '🏢', img: '/images/area1.jpg', count: 0 },
+  { key: 'land', label: 'Land', icon: '🌳', img: '/images/area2.jpg', count: 0 },
+  { key: 'shortlet', label: 'Shortlets', icon: '🛏️', img: '/images/area3.jpg', count: 0 },
+  { key: 'hotel', label: 'Hotels', icon: '🏨', img: '/images/area1.jpg', count: 0 },
+  { key: 'hall', label: 'Halls', icon: '🎉', img: '/images/area2.jpg', count: 0 },
+  { key: 'event_center', label: 'Event Venues', icon: '🎪', img: '/images/area3.jpg', count: 0 },
 ])
 
 const CITIES = ['Lagos', 'Abuja', 'Ibadan', 'Port Harcourt', 'Benin City', 'Enugu']
@@ -94,13 +95,14 @@ onMounted(async () => {
       ...categories.value.map((c) => propertyApi.browse({ category: c.key, per_page: 1 })),
       ...CITIES.map((c) => propertyApi.browse({ city: c, per_page: 1 })),
     ])) as any[]
+    totalListings.value = catRes[0]?.data?.meta?.total_count ?? 0
     categories.value = categories.value.map((c, i) => ({
       ...c,
-      count: catRes[i + 2]?.data.meta.total_count ?? 0,
+      count: catRes[i + 3]?.data.meta.total_count ?? 0,
     }))
     stays.value = [...(catRes[1]?.data?.data ?? []), ...(catRes[2]?.data?.data ?? [])]
     locations.value = CITIES.map((name, i) => {
-      const r = catRes[i + 8]
+      const r = catRes[i + 9]
       const p = r?.data?.data?.[0]
       return {
         name,
@@ -126,14 +128,21 @@ watch(mode, () => {
 
 <template>
   <main class="home">
-    <!-- ============ HERO / SEARCH ============ -->
+    <!-- ============ HERO ============ -->
     <section class="hero">
       <div class="container hero-inner">
         <div class="hero-copy">
           <h1 class="hero-title">Find a place you'll love.</h1>
-          <p class="hero-sub">Buy • Rent • Shortlets • Hotels • Venues</p>
+          <p class="hero-sub">Homes • Land • Offices • Stays • Venues</p>
+          <p class="hero-desc">
+            Aperte connects Nigerian property owners, agents, travelers and seekers — rent, buy or book
+            with no middlemen.
+          </p>
         </div>
+        <div class="hero-art"><img src="/images/hero.jpg" alt="A property in Nigeria" /></div>
+      </div>
 
+      <div class="container hero-search-wrap">
         <form class="home-search" @submit.prevent="goSearch">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input v-model="q" type="text" :placeholder="`Search ${MODES.find((m) => m.key === mode)?.label.toLowerCase()} properties, areas…`" aria-label="Search properties" />
@@ -143,6 +152,21 @@ watch(mode, () => {
         <div class="suggest-chips">
           <span class="sc-label">Try:</span>
           <button v-for="s in SUGGESTIONS" :key="s" class="sc-chip" @click="quickSearch(s)">{{ s }}</button>
+        </div>
+      </div>
+
+      <div class="container hero-stats">
+        <div class="stat">
+          <span class="hs-val">{{ totalListings.toLocaleString() }}+</span>
+          <span class="hs-lbl">Live listings</span>
+        </div>
+        <div class="stat">
+          <span class="hs-val">Rent · Buy · Book</span>
+          <span class="hs-lbl">Homes, land, stays &amp; venues</span>
+        </div>
+        <div class="stat">
+          <span class="hs-val">Direct</span>
+          <span class="hs-lbl">Message owners, no middlemen</span>
         </div>
       </div>
     </section>
@@ -169,6 +193,7 @@ watch(mode, () => {
           :to="{ path: '/listings', query: { ...(MODES.find((m) => m.key === mode)?.query as object), category: c.key } }"
           class="cat-tile"
         >
+          <img class="cat-img" :src="c.img" :alt="c.label" loading="lazy" />
           <span class="cat-icon">{{ c.icon }}</span>
           <span class="cat-label">{{ c.label }}</span>
           <span class="cat-count">{{ c.count.toLocaleString() }}</span>
@@ -208,7 +233,7 @@ watch(mode, () => {
     <section class="section">
       <div class="container">
         <SectionHeading label="Locations" title="Popular areas" link="/listings" />
-        <div class="h-scroll">
+        <div class="h-scroll loc-scroll">
           <RouterLink
             v-for="l in locations"
             :key="l.name"
@@ -300,27 +325,58 @@ watch(mode, () => {
 </template>
 
 <style scoped>
-/* ---------- hero ---------- */
+/* ---------- hero (desktop default) ---------- */
 .hero {
   background: linear-gradient(180deg, #f5f8ff 0%, #fff 100%);
-  padding: 28px 0 18px;
+  padding: 48px 0 20px;
+}
+
+.hero-inner {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 48px;
+  align-items: center;
 }
 
 .hero-title {
-  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-size: clamp(2.4rem, 5vw, 3.8rem);
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.08;
   color: var(--clr-black, #111);
   letter-spacing: -0.02em;
   margin: 0 0 6px;
 }
 
 .hero-sub {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--clr-blue2, #0a84ff);
-  margin: 0 0 16px;
+  margin: 10px 0 14px;
   letter-spacing: 0.02em;
+}
+
+.hero-desc {
+  color: var(--clr-muted, #555);
+  font-size: 1rem;
+  max-width: 460px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.hero-art {
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(10, 60, 120, 0.16);
+}
+
+.hero-art img {
+  width: 100%;
+  height: 380px;
+  object-fit: cover;
+}
+
+.hero-search-wrap {
+  margin-top: 36px;
 }
 
 .home-search {
@@ -332,6 +388,7 @@ watch(mode, () => {
   border-radius: 12px;
   padding: 6px 6px 6px 14px;
   box-shadow: 0 4px 18px rgba(16, 30, 60, 0.06);
+  max-width: 640px;
 }
 
 .home-search:focus-within {
@@ -358,18 +415,39 @@ watch(mode, () => {
   border-radius: 10px;
 }
 
+/* hero stats */
+.hero-stats {
+  display: flex;
+  gap: 48px;
+  padding: 36px 0 30px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hs-val {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--clr-dark, #222);
+}
+
+.hs-lbl {
+  color: var(--clr-muted, #666);
+  font-size: 0.9rem;
+}
+
 /* ---------- suggestions ---------- */
 .suggest-chips {
   display: flex;
   gap: 8px;
   align-items: center;
-  overflow-x: auto;
+  flex-wrap: wrap;
   padding: 12px 0 4px;
-  scrollbar-width: none;
-}
-
-.suggest-chips::-webkit-scrollbar {
-  display: none;
+  max-width: 640px;
 }
 
 .sc-label {
@@ -387,7 +465,9 @@ watch(mode, () => {
   font-size: 0.78rem;
   color: var(--clr-dark, #333);
   white-space: nowrap;
+  cursor: pointer;
 }
+.sc-chip:hover { border-color: var(--clr-blue, #0a84ff); color: var(--clr-blue, #0a84ff); }
 
 /* ---------- segmented control ---------- */
 .seg-wrap {
@@ -402,6 +482,8 @@ watch(mode, () => {
   border-radius: 12px;
   padding: 4px;
   gap: 4px;
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 .seg button {
@@ -414,6 +496,7 @@ watch(mode, () => {
   letter-spacing: 0.06em;
   color: #555;
   transition: all 0.15s;
+  cursor: pointer;
 }
 
 .seg button.active {
@@ -422,90 +505,95 @@ watch(mode, () => {
   box-shadow: 0 2px 8px rgba(16, 30, 60, 0.1);
 }
 
-/* ---------- category tiles ---------- */
+/* ---------- categories (desktop: image grid) ---------- */
 .cat-row {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
   padding: 4px 0 8px;
-  scrollbar-width: none;
-}
-
-.cat-row::-webkit-scrollbar {
-  display: none;
 }
 
 .cat-tile {
-  flex: 0 0 110px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 14px 8px;
-  background: #fff;
-  border: 1px solid #eef0f3;
+  position: relative;
+  display: block;
   border-radius: 14px;
-  text-align: center;
-  transition: border-color 0.15s, transform 0.15s;
+  overflow: hidden;
+  height: 210px;
+  border: 1px solid #eef0f3;
+  background: #fff;
+  text-align: left;
+  transition: transform 0.2s;
 }
+.cat-tile:hover { transform: translateY(-2px); }
+.cat-tile:hover .cat-img { transform: scale(1.05); }
 
-.cat-tile:active {
-  transform: scale(0.97);
+.cat-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.35s;
 }
 
 .cat-icon {
-  font-size: 1.6rem;
-  line-height: 1;
-}
-
-.cat-label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--clr-dark, #222);
-}
-
-.cat-count {
-  font-size: 0.72rem;
-  color: var(--color-muted, #888);
-}
-
-/* ---------- horizontal scroll sections ---------- */
-.h-scroll {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding: 4px 0 10px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
-}
-
-.h-scroll::-webkit-scrollbar {
   display: none;
 }
 
-.h-scroll :deep(.card) {
-  flex: 0 0 250px;
-  scroll-snap-align: start;
+.cat-label {
+  position: absolute;
+  left: 14px;
+  bottom: 32px;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  z-index: 1;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.4);
+}
+.cat-count {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  color: rgba(255,255,255,0.9);
+  font-size: 0.82rem;
+  z-index: 1;
+}
+.cat-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 40%, rgba(0,0,0,0.68) 100%);
+  pointer-events: none;
 }
 
+/* ---------- horizontal scroll sections (desktop: grid) ---------- */
+.h-scroll {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  padding: 4px 0 10px;
+}
+
+/* keep 4-col grid for stays? use auto */
+.h-scroll :deep(.card),
 .h-scroll :deep(.h-card-skeleton) {
-  flex: 0 0 250px;
+  width: 100%;
 }
 
-/* ---------- location tiles ---------- */
+/* ---------- location tiles (desktop: image card with overlay) ---------- */
 .loc-tile {
-  flex: 0 0 130px;
   display: block;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid #eef0f3;
   background: #fff;
+  height: 170px;
+  position: relative;
 }
 
 .loc-img-wrap {
-  height: 90px;
-  overflow: hidden;
+  position: absolute;
+  inset: 0;
   background: #eef1f6;
 }
 
@@ -513,7 +601,9 @@ watch(mode, () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.35s;
 }
+.loc-tile:hover .loc-img-wrap img { transform: scale(1.05); }
 
 .loc-fallback {
   display: grid;
@@ -525,23 +615,26 @@ watch(mode, () => {
 }
 
 .loc-info {
-  padding: 8px 10px 10px;
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 30px 14px 12px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.68));
+  z-index: 1;
 }
 
 .loc-info strong {
   display: block;
-  font-size: 0.88rem;
-  color: var(--clr-dark, #222);
+  font-size: 1rem;
+  color: #fff;
 }
-
 .loc-info span {
-  font-size: 0.72rem;
-  color: var(--color-muted, #888);
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.9);
 }
 
 /* ---------- sections ---------- */
 .section {
-  padding: 34px 0;
+  padding: 56px 0;
 }
 
 .section.alt {
@@ -551,76 +644,226 @@ watch(mode, () => {
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 22px;
+  gap: 24px;
 }
 
 .empty {
   text-align: center;
   color: var(--color-muted, #888);
-  padding: 30px 0;
+  padding: 40px 0;
   font-size: 0.95rem;
 }
 
 /* ---------- promos ---------- */
+.promo {
+  padding: 0;
+}
 .promo-inner {
-  padding: 40px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+  border-radius: 18px;
+  padding: 40px 44px;
+  flex-wrap: wrap;
+  margin: 56px auto;
+}
+
+.requests-promo .promo-inner {
+  background: linear-gradient(120deg, #eaf3ff, #f5f0ff);
+}
+
+.owner-promo .promo-inner {
+  background: var(--clr-purple-btn, #4b2a85);
 }
 
 .promo h2 {
-  font-size: clamp(1.5rem, 4vw, 2.2rem);
-  margin: 6px 0 8px;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 700;
+  color: var(--clr-dark, #1c1c1c);
+  margin: 4px 0 8px;
 }
 
 .promo p {
-  color: #444;
+  color: var(--clr-muted, #555);
   max-width: 520px;
+  line-height: 1.6;
+}
+
+.owner-promo h2,
+.owner-promo p {
+  color: #fff;
+}
+.owner-promo .section-label {
+  color: #b9a6e8;
 }
 
 .promo-actions {
   display: flex;
   gap: 12px;
-  margin-top: 18px;
   flex-wrap: wrap;
 }
 
-.requests-promo {
-  background: linear-gradient(120deg, #eef4ff, #e7edfb);
+.btn-light {
+  background: #fff;
+  color: var(--clr-purple-btn, #4b2a85);
+  font-weight: 600;
+  padding: 10px 24px;
+  font-size: 0.92rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
 }
+.btn-light:hover { background: #efe9fb; }
 
-.owner-promo {
-  background: #151a24;
-  color: #fff;
-}
-
-.owner-promo p {
-  color: #b7bfcc;
-}
-
-/* ---------- responsive ---------- */
-@media (min-width: 769px) {
-  .hero {
-    padding: 48px 0 24px;
-  }
+/* ---------- responsive (mobile overrides) ---------- */
+@media (max-width: 1000px) {
   .hero-inner {
-    max-width: 640px;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .hero-art img {
+    height: 280px;
+  }
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 768px) {
   .hero {
     padding: 20px 0 8px;
+    background: linear-gradient(180deg, #f5f8ff 0%, #fff 100%);
+  }
+  .hero-inner {
+    gap: 0;
+  }
+  .hero-title {
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    line-height: 1.1;
+  }
+  .hero-sub {
+    font-size: 0.95rem;
+    margin: 0 0 16px;
+  }
+  .hero-desc {
+    display: none;
+  }
+  .hero-art {
+    display: none;
+  }
+  .hero-search-wrap {
+    margin-top: 0;
+  }
+  .home-search {
+    max-width: none;
+  }
+  .suggest-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    max-width: none;
+  }
+  .suggest-chips::-webkit-scrollbar { display: none; }
+  .hero-stats {
+    display: none;
   }
   .section {
     padding: 26px 0;
   }
+  .promo-inner {
+    margin: 26px auto;
+    padding: 28px 22px;
+    border-radius: 14px;
+  }
+  /* categories -> horizontal scroll Jumia style */
+  .cat-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+  .cat-row::-webkit-scrollbar { display: none; }
+  .cat-tile {
+    flex: 0 0 110px;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 8px;
+    background: #fff;
+    border: 1px solid #eef0f3;
+    border-radius: 14px;
+    text-align: center;
+    overflow: visible;
+  }
+  .cat-tile::after { display: none; }
+  .cat-img { display: none; }
+  .cat-icon {
+    display: block;
+    font-size: 1.6rem;
+    line-height: 1;
+  }
+  .cat-label {
+    position: static;
+    color: var(--clr-dark, #222);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-shadow: none;
+  }
+  .cat-count {
+    position: static;
+    color: var(--color-muted, #888);
+    font-size: 0.72rem;
+  }
+  /* h-scroll -> flex horizontal on mobile */
   .h-scroll {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
     margin: 0 -16px;
     padding: 4px 16px 10px;
   }
+  .h-scroll::-webkit-scrollbar { display: none; }
   .h-scroll :deep(.card) {
     flex: 0 0 62vw;
     max-width: 240px;
+    scroll-snap-align: start;
   }
+  .h-scroll :deep(.h-card-skeleton) {
+    flex: 0 0 62vw;
+    max-width: 240px;
+  }
+  /* locations horizontal on mobile */
+  .loc-tile {
+    flex: 0 0 130px;
+    height: auto;
+    border-radius: 14px;
+    overflow: hidden;
+    display: block;
+    position: relative;
+  }
+  .loc-img-wrap {
+    position: relative;
+    inset: auto;
+    height: 90px;
+    overflow: hidden;
+  }
+  .loc-info {
+    position: static;
+    background: #fff;
+    padding: 8px 10px 10px;
+  }
+  .loc-info strong { color: var(--clr-dark, #222); font-size: 0.88rem; }
+  .loc-info span { color: var(--color-muted, #888); font-size: 0.72rem; }
 }
 
 @media (max-width: 600px) {
@@ -628,11 +871,11 @@ watch(mode, () => {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
-  .promo-inner {
-    padding: 28px 0;
-  }
   .hs-btn {
     padding: 10px 14px;
+  }
+  .seg {
+    max-width: none;
   }
 }
 
