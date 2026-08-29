@@ -65,14 +65,22 @@ const categories = ref<{ key: string; label: string; icon: string; img: string; 
 
 const CITIES = ['Lagos', 'Abuja', 'Ibadan', 'Port Harcourt', 'Benin City', 'Enugu']
 const CITY_LANDMARKS: Record<string, string> = {
-  Lagos: '/images/landmarks/lagos.jpg',
-  Abuja: '/images/landmarks/abuja.jpg',
-  Ibadan: '/images/landmarks/ibadan.jpg',
-  'Port Harcourt': '/images/landmarks/port-harcourt.jpg',
-  'Benin City': '/images/landmarks/benin-city.jpg',
-  Enugu: '/images/landmarks/enugu.jpg',
+  Lagos: '/images/landmarks/lagos.jpg?v=3',
+  Abuja: '/images/landmarks/abuja.jpg?v=3',
+  Ibadan: '/images/landmarks/ibadan.jpg?v=3',
+  'Port Harcourt': '/images/landmarks/port-harcourt.jpg?v=3',
+  'Benin City': '/images/landmarks/benin-city.jpg?v=3',
+  Enugu: '/images/landmarks/enugu.jpg?v=3',
 }
-const locations = ref<{ name: string; img: string; count: number }[]>([])
+const CITY_LANDMARK_LABELS: Record<string, string> = {
+  Lagos: 'Lekki-Ikoyi Bridge',
+  Abuja: 'Abuja National Mosque',
+  Ibadan: 'Cocoa House',
+  'Port Harcourt': 'Pleasure Park',
+  'Benin City': 'Royal Palace',
+  Enugu: 'Milliken Hill',
+}
+const locations = ref<{ name: string; img: string; count: number; landmark: string }[]>([])
 
 function modeParams(extra: Record<string, unknown> = {}) {
   const m = MODES.find((x) => x.key === mode.value)!
@@ -114,6 +122,7 @@ onMounted(async () => {
       return {
         name,
         img: CITY_LANDMARKS[name] || '',
+        landmark: CITY_LANDMARK_LABELS[name] || '',
         count: r?.data?.meta?.total_count ?? 0,
       }
     })
@@ -253,6 +262,7 @@ watch(mode, () => {
             </div>
             <div class="loc-info">
               <strong>{{ l.name }}</strong>
+              <em class="loc-landmark">{{ l.landmark }}</em>
               <span>{{ l.count.toLocaleString() }} properties</span>
             </div>
           </RouterLink>
@@ -638,6 +648,14 @@ watch(mode, () => {
   font-size: 0.82rem;
   color: rgba(255,255,255,0.9);
 }
+.loc-landmark {
+  display: block;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 500;
+  color: rgba(255,255,255,0.88);
+  margin-top: 1px;
+}
 
 /* ---------- sections ---------- */
 .section {
@@ -871,6 +889,7 @@ watch(mode, () => {
   }
   .loc-info strong { color: var(--clr-dark, #222); font-size: 0.88rem; }
   .loc-info span { color: var(--color-muted, #888); font-size: 0.72rem; }
+  .loc-info .loc-landmark { color: var(--clr-blue2, #0a84ff); font-size: 0.68rem; margin: 0; }
 }
 
 @media (max-width: 600px) {
