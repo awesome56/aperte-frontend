@@ -92,6 +92,8 @@ const contactEmails = computed(() => {
 
 const isVerified = computed(() => Boolean(property.value?.approved))
 const isClaimed = computed(() => Boolean(property.value?.owner_is_admin === false))
+const isUnclaimedAdmin = computed(() => Boolean(property.value?.owner_is_admin) && !isClaimed.value)
+const showOwnerCard = computed(() => !isUnclaimedAdmin.value)
 
 const AMENITY_ICONS: Record<string, string> = {
   parking: 'P',
@@ -450,27 +452,28 @@ watch(
         <!-- Sidebar: owner + actions -->
         <aside class="side-col">
           <div class="owner-card">
-            <div class="owner-info">
-              <div class="owner-avatar">{{ ownerInitials }}</div>
-              <div class="owner-details">
-                <span class="owner-label">Listed by</span>
-                <strong>{{ property.owner_full_name || property.username }}</strong>
-                <span class="owner-verified">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
-                  {{ isVerified ? 'Aperte verified' : 'Verified account' }}
-                </span>
+            <template v-if="showOwnerCard">
+              <div class="owner-info">
+                <div class="owner-avatar">{{ ownerInitials }}</div>
+                <div class="owner-details">
+                  <span class="owner-label">Listed by</span>
+                  <strong>{{ property.owner_full_name || property.username }}</strong>
+                  <span class="owner-verified">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+                    {{ isVerified ? 'Aperte verified' : 'Verified account' }}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <button
-              v-if="!isOwner"
-              class="btn btn-primary btn-block"
-              @click="messageOwner"
-            >
-              Message Owner
-            </button>
-            <button v-if="isBookable && !isOwner" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
-            <div v-if="!isOwner && (contactEmails.length || contactPhones.length)" class="contact-list">
+              <button
+                v-if="!isOwner"
+                class="btn btn-primary btn-block"
+                @click="messageOwner"
+              >
+                Message Owner
+              </button>
+              <button v-if="isBookable && !isOwner" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
+              <div v-if="!isOwner && (contactEmails.length || contactPhones.length)" class="contact-list">
               <div v-if="contactEmails.length" class="contact-group">
                 <span class="contact-label">Emails</span>
                 <a
@@ -486,6 +489,7 @@ watch(
               </div>
               <a v-if="contactWebsite" :href="contactWebsite" target="_blank" rel="noopener" class="contact-link">{{ contactWebsite.replace(/^https?:\/\//, '') }} ↗</a>
             </div>
+            </template>
 
             <!-- Claim -->
             <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
@@ -609,7 +613,7 @@ watch(
         <svg viewBox="0 0 24 24" width="20" height="20" :fill="favorited ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
         <span>Save</span>
       </button>
-      <button v-if="!isOwner" class="sb-msg" @click="messageOwner">Message</button>
+      <button v-if="!isOwner && showOwnerCard" class="sb-msg" @click="messageOwner">Message</button>
       <button v-if="isBookable && !isOwner" class="sb-book" @click="startBooking">Book Now</button>
     </div>
   </div>
