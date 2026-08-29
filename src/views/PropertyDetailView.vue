@@ -473,7 +473,8 @@ watch(
                 Message Owner
               </button>
               <button v-if="isBookable && !isOwner" class="btn btn-primary btn-block" @click="startBooking">Book Now</button>
-              <div v-if="!isOwner && (contactEmails.length || contactPhones.length)" class="contact-list">
+            </template>
+            <div v-if="!isOwner && (contactEmails.length || contactPhones.length || contactWebsite)" class="contact-list">
               <div v-if="contactEmails.length" class="contact-group">
                 <span class="contact-label">Emails</span>
                 <a
@@ -489,7 +490,6 @@ watch(
               </div>
               <a v-if="contactWebsite" :href="contactWebsite" target="_blank" rel="noopener" class="contact-link">{{ contactWebsite.replace(/^https?:\/\//, '') }} ↗</a>
             </div>
-            </template>
 
             <!-- Claim -->
             <div v-if="property.owner_is_admin && !isOwner" class="claim-box">
