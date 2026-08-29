@@ -74,7 +74,13 @@ const ownerInitials = computed(() => {
 
 const contactPhone = computed(() => property.value?.contact_phone || '')
 const contactEmail = computed(() => property.value?.contact_email || '')
-const contactWebsite = computed(() => property.value?.contact_website || '')
+const contactWebsite = computed(() => {
+  const w = property.value?.contact_website || ''
+  if (!w) return ''
+  // hide scraped source URLs that were incorrectly stored as contact_website
+  if (w.includes('propertypro.ng') || w.includes('propertypro.com')) return ''
+  return w
+})
 const contactPhones = computed(() => {
   const list = property.value?.contact_phones?.filter(Boolean) || []
   return list.length ? list : contactPhone.value ? [contactPhone.value] : []
