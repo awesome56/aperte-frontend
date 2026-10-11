@@ -57,5 +57,11 @@
 .legal a:hover { color: #fff; }
 
 @media (max-width: 800px) { .footer-grid { grid-template-columns: 1fr 1fr; } .fb-inner { flex-direction: column; gap: 10px; } }
-@media (max-width: 500px) { .footer-grid { grid-template-columns: 1fr; } }
+@media (max-width: 500px) {
+  .footer-grid { grid-template-columns: 1fr; }
+  /* Stack email + button full-width: roomy 48px touch targets */
+  .sub-form { flex-direction: column; gap: 10px; }
+  .fc { width: 100%; padding: 14px; font-size: 16px; }
+  .sub-form .btn { width: 100%; padding: 14px 16px; }
+}
 </style>
