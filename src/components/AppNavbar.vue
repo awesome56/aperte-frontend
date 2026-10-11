@@ -201,7 +201,9 @@ watch(() => router.currentRoute.value.fullPath, () => {
         Search properties, areas, cities…
       </span>
     </div>
-    <nav class="m-cats" aria-label="Categories">
+    <!-- Home has its own category tiles + BUY/RENT/SHORTLET switch, so the
+         chips hide there too — leaving a clean single-row header. -->
+    <nav v-if="route.path !== '/'" class="m-cats" aria-label="Categories">
       <RouterLink to="/listings?purpose=sale" :class="{ active: isActive('/listings?purpose=sale') }">Buy</RouterLink>
       <RouterLink to="/listings?purpose=rent" :class="{ active: isActive('/listings?purpose=rent') }">Rent</RouterLink>
       <RouterLink to="/listings?category=shortlet" :class="{ active: isActive('/listings?category=shortlet') }">Shortlets</RouterLink>
