@@ -22,6 +22,7 @@ const showConvs = ref(false)
 const bodyEl = ref<HTMLElement | null>(null)
 const voiceOn = ref(false)
 const voiceBlocked = ref(false)
+const voiceHint = ref('')
 const listening = ref(false)
 let voiceAudio: HTMLAudioElement | null = null
 let unlockCtx: AudioContext | null = null
@@ -95,24 +96,34 @@ function stopVoice() {
 function toggleVoice() {
   unlockAudio()
   voiceBlocked.value = false
+  voiceHint.value = ''
   voiceOn.value = !voiceOn.value
   try {
     localStorage.setItem('aperte_alice_voice', voiceOn.value ? '1' : '0')
   } catch { /* ignore */ }
   if (!voiceOn.value) stopVoice()
-  else track('alice_voice', 'engagement', { enabled: true })
+  else {
+    track('alice_voice', 'engagement', { enabled: true })
+    // Instant audible proof the voice path works (also keeps audio unlocked).
+    void speak("Voice on! I'll read my replies aloud from now on.")
+  }
 }
 
 async function speak(text: string) {
   if (!voiceOn.value || !text.trim()) return
   stopVoice()
   const url = await speakText(text)
-  if (!url) return
+  if (!url) {
+    voiceHint.value = "I couldn't generate voice just now — check your connection and ask again."
+    voiceBlocked.value = true
+    return
+  }
   voiceAudio = new Audio(url)
   try {
     await voiceAudio.play()
   } catch {
     // Autoplay blocked: show a tap-to-enable hint instead of failing silently.
+    voiceHint.value = '🔇 Audio was blocked — tap here to enable my voice, then ask again.'
     voiceBlocked.value = true
   }
 }
@@ -332,8 +343,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="voiceBlocked" class="alice-voice-hint" @click="voiceBlocked = false; unlockAudio()">
-        🔇 Audio was blocked — tap here to enable ALICE's voice, then ask again.
+      <div v-if="voiceBlocked" class="alice-voice-hint" @click="voiceBlocked = false; voiceHint = ''; unlockAudio()">
+        {{ voiceHint || '🔇 Audio was blocked — tap here to enable my voice, then ask again.' }}
       </div>
 
       <div class="alice-foot">
