@@ -60,6 +60,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Safety net: no page-level sideways scroll on any screen size.
+   `clip` (not `hidden`) keeps the sticky navbar working. */
+body {
+  overflow-x: clip;
+}
+
 body {
   font-family: var(--font-family);
   color: var(--color-text);
