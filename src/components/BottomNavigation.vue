@@ -8,7 +8,7 @@ import { USER_BOTTOM_NAV, VISITOR_BOTTOM_NAV, type BottomNavItem } from '@/confi
 const route = useRoute()
 const auth = useAuthStore()
 
-const hidden = computed(() => route.path.startsWith('/admin') || route.path === '/login' || route.path === '/register')
+const hidden = computed(() => route.path.startsWith('/admin'))
 
 const items = computed<BottomNavItem[]>(() => (auth.isAuthenticated ? USER_BOTTOM_NAV : VISITOR_BOTTOM_NAV))
 
