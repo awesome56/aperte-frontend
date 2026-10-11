@@ -141,6 +141,24 @@ function scrollDown() {
   nextTick(() => bodyEl.value?.scrollTo({ top: bodyEl.value.scrollHeight }))
 }
 
+// Escape HTML, then linkify full URLs and absolute app paths (/add-listing).
+// Rendered with v-html so ALICE's links are tappable.
+function renderMessage(text: string): string {
+  const esc = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+  const withUrls = esc.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener" class="alice-link">$1</a>',
+  )
+  return withUrls.replace(
+    /(^|[\s(>])(\/[a-z][a-z0-9\-_/]*(?:\?[^\s<]*)?)/g,
+    '$1<a href="$2" class="alice-link">$2</a>',
+  )
+}
+
 function welcome() {
   messages.value = [
     { role: 'alice', content: "Hey, I'm ALICE — your Aperte assistant. Ask me to find a place, check bookings, or explain a listing." },
@@ -343,7 +361,7 @@ onMounted(() => {
 
       <div ref="bodyEl" class="alice-body">
         <div v-for="(m, i) in messages" :key="i" class="alice-msg" :class="m.role">
-          <div class="alice-bubble">{{ m.content }}</div>
+          <div class="alice-bubble" v-html="renderMessage(m.content)"></div>
         </div>
 
         <div v-if="pendingConfirm" class="alice-confirm">
@@ -497,6 +515,12 @@ onMounted(() => {
   color: #222;
   border-bottom-left-radius: 4px;
 }
+.alice-bubble .alice-link {
+  color: var(--color-primary, #2076ff);
+  font-weight: 600;
+  word-break: break-all;
+}
+.alice-msg.user .alice-bubble .alice-link { color: #fff; text-decoration: underline; }
 
 .alice-confirm {
   border: 1.5px dashed var(--color-primary, #2076ff);
