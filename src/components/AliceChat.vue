@@ -23,10 +23,14 @@ const bodyEl = ref<HTMLElement | null>(null)
 const voiceOn = ref(false)
 const voiceBlocked = ref(false)
 const voiceHint = ref('')
+// True when the current prompt was spoken (mic) — that turn gets a voice
+// reply even if the speaker toggle is off (voice in → voice out).
+const voiceInitiated = ref(false)
 const listening = ref(false)
 let voiceAudio: HTMLAudioElement | null = null
 let unlockCtx: AudioContext | null = null
 let recog: unknown = null
+let lastSpokeTurn = false
 
 const micSupported =
   typeof window !== 'undefined' &&
@@ -69,6 +73,7 @@ function toggleMic() {
       if (text) input.value = text
       if (last?.isFinal) {
         track('alice_voice_input', 'search', { term: text.slice(0, 80) })
+        voiceInitiated.value = true
         void send()
       }
     }
@@ -109,8 +114,8 @@ function toggleVoice() {
   }
 }
 
-async function speak(text: string) {
-  if (!voiceOn.value || !text.trim()) return
+async function speak(text: string, force = false) {
+  if ((!voiceOn.value && !force) || !text.trim()) return
   stopVoice()
   const url = await speakText(text)
   if (!url) {
@@ -219,6 +224,10 @@ async function send() {
     return
   }
   input.value = ''
+  // Capture + reset: only this turn speaks when voice-initiated.
+  const spokeTurn = voiceInitiated.value
+  voiceInitiated.value = false
+  lastSpokeTurn = spokeTurn
   messages.value.push({ role: 'user', content: text })
   track('alice_message', 'search', { term: text.slice(0, 80) })
   streaming.value = true
@@ -250,7 +259,7 @@ async function send() {
     streaming.value = false
     refreshConvs()
     scrollDown()
-    if (replyMsg().content) speak(replyMsg().content)
+    if (replyMsg().content) void speak(replyMsg().content, spokeTurn)
   }
 }
 
@@ -274,6 +283,11 @@ async function confirmWrite(allow: boolean) {
     } else {
       messages.value.push({ role: 'alice', content: r?.message || "I couldn't complete that. Want to try differently?" })
     }
+    if (voiceOn.value || lastSpokeTurn) {
+      const last = messages.value[messages.value.length - 1]
+      if (last) void speak(last.content, lastSpokeTurn)
+    }
+    lastSpokeTurn = false
   } catch {
     pendingConfirm.value = null
     messages.value.push({ role: 'alice', content: "I couldn't complete that right now. Please try again." })
