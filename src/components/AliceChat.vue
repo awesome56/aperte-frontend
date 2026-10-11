@@ -21,7 +21,65 @@ const convs = ref<AliceConversation[]>([])
 const showConvs = ref(false)
 const bodyEl = ref<HTMLElement | null>(null)
 const voiceOn = ref(false)
+const voiceBlocked = ref(false)
+const listening = ref(false)
 let voiceAudio: HTMLAudioElement | null = null
+let unlockCtx: AudioContext | null = null
+let recog: unknown = null
+
+const micSupported =
+  typeof window !== 'undefined' &&
+  Boolean((window as unknown as Record<string, unknown>).SpeechRecognition ||
+          (window as unknown as Record<string, unknown>).webkitSpeechRecognition)
+
+// Unlock audio on real user gestures so replies can autoplay afterwards.
+function unlockAudio() {
+  try {
+    const AC = (window as unknown as Record<string, unknown>).AudioContext ||
+               (window as unknown as Record<string, unknown>).webkitAudioContext
+    if (!AC) return
+    if (!unlockCtx) unlockCtx = new (AC as typeof AudioContext)()
+    if (unlockCtx.state === 'suspended') void unlockCtx.resume()
+  } catch { /* ignore */ }
+}
+
+function toggleMic() {
+  unlockAudio()
+  if (listening.value) {
+    try { (recog as { stop: () => void } | null)?.stop() } catch { /* ignore */ }
+    return
+  }
+  const SR = (window as unknown as Record<string, { new (): unknown }>).SpeechRecognition ||
+             (window as unknown as Record<string, { new (): unknown }>).webkitSpeechRecognition
+  if (!SR) return
+  try {
+    const r = new SR() as {
+      lang: string; interimResults: boolean; continuous: boolean
+      onresult: ((e: { results: ArrayLike<{ isFinal: boolean; [i: number]: { transcript: string } }> }) => void) | null
+      onerror: (() => void) | null; onend: (() => void) | null
+      start: () => void; stop: () => void
+    }
+    r.lang = 'en-NG'
+    r.interimResults = true
+    r.continuous = false
+    r.onresult = (e) => {
+      const last = e.results[e.results.length - 1]
+      const text = last?.[0]?.transcript || ''
+      if (text) input.value = text
+      if (last?.isFinal) {
+        track('alice_voice_input', 'search', { term: text.slice(0, 80) })
+        void send()
+      }
+    }
+    r.onerror = () => { listening.value = false }
+    r.onend = () => { listening.value = false }
+    recog = r
+    r.start()
+    listening.value = true
+  } catch {
+    listening.value = false
+  }
+}
 
 try {
   voiceOn.value = localStorage.getItem('aperte_alice_voice') === '1'
@@ -35,6 +93,8 @@ function stopVoice() {
 }
 
 function toggleVoice() {
+  unlockAudio()
+  voiceBlocked.value = false
   voiceOn.value = !voiceOn.value
   try {
     localStorage.setItem('aperte_alice_voice', voiceOn.value ? '1' : '0')
@@ -49,7 +109,12 @@ async function speak(text: string) {
   const url = await speakText(text)
   if (!url) return
   voiceAudio = new Audio(url)
-  voiceAudio.play().catch(() => { /* autoplay blocked */ })
+  try {
+    await voiceAudio.play()
+  } catch {
+    // Autoplay blocked: show a tap-to-enable hint instead of failing silently.
+    voiceBlocked.value = true
+  }
 }
 
 function track(name: string, category: string, props: Record<string, unknown> = {}) {
@@ -132,6 +197,9 @@ function describeConfirm(name: string, args: Record<string, unknown>): string {
 }
 
 async function send() {
+  unlockAudio()
+  try { (recog as { stop: () => void } | null)?.stop() } catch { /* ignore */ }
+  listening.value = false
   const text = input.value.trim()
   if (!text || streaming.value) return
   if (!auth.isAuthenticated) {
@@ -264,11 +332,23 @@ onMounted(() => {
         </div>
       </div>
 
+      <div v-if="voiceBlocked" class="alice-voice-hint" @click="voiceBlocked = false; unlockAudio()">
+        🔇 Audio was blocked — tap here to enable ALICE's voice, then ask again.
+      </div>
+
       <div class="alice-foot">
+        <button
+          v-if="micSupported"
+          class="alice-mic"
+          :class="{ live: listening }"
+          :title="listening ? 'Stop listening' : 'Speak to ALICE'"
+          @click="toggleMic"
+          aria-label="Speak to ALICE"
+        >🎤</button>
         <input
           v-model="input"
           class="alice-input"
-          placeholder="Ask ALICE anything…"
+          :placeholder="listening ? 'Listening… speak now' : 'Ask ALICE anything…'"
           :disabled="streaming"
           @keyup.enter="send"
         />
@@ -404,11 +484,42 @@ onMounted(() => {
 .alice-confirm-btns { display: flex; gap: 8px; }
 .btn-sm { padding: 8px 16px; font-size: 0.85rem; }
 
+.alice-voice-hint {
+  margin: 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fff7e6;
+  border: 1px solid #f0d48a;
+  color: #8a6d1a;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .alice-foot {
   display: flex;
   gap: 8px;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid #eef0f3;
+  align-items: center;
+}
+.alice-mic {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1.5px solid #e5e8ee;
+  background: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.alice-mic.live {
+  background: #ff4757;
+  border-color: #ff4757;
+  animation: alice-pulse 1.2s ease infinite;
+}
+@keyframes alice-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
 }
 .alice-input {
   flex: 1;
