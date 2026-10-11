@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import AppNavbar from '@/components/AppNavbar.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import BottomNavigation from '@/components/BottomNavigation.vue'
+import AliceChat from '@/components/AliceChat.vue'
 // calls temporarily disabled — see src/calls/callManager.ts
 // import CallOverlay from '@/components/CallOverlay.vue'
 import { startStream, stopStream, ensureStream } from '@/messaging/stream'
@@ -43,6 +44,7 @@ onUnmounted(() => stopStream())
     </main>
     <AppFooter v-if="!hideChrome" />
     <BottomNavigation />
+    <AliceChat />
     <!-- calls temporarily disabled
     <CallOverlay />
     -->
