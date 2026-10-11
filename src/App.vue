@@ -16,6 +16,8 @@ const route = useRoute()
 // Hide the site navbar/footer chrome where the page has its own chrome:
 // the admin area and the dashboard (which has its own header/sidebar).
 const hideChrome = computed(() => route.path.startsWith('/admin') || route.path.startsWith('/dashboard'))
+// Auth pages keep the navbar but drop the footer for a focused layout.
+const hideFooter = computed(() => hideChrome.value || route.path === '/login' || route.path === '/register')
 
 // The SSE stream (messages + calls) runs globally for authenticated users so
 // incoming calls and new messages arrive on ANY page.
@@ -42,7 +44,7 @@ onUnmounted(() => stopStream())
     <main class="main">
       <RouterView />
     </main>
-    <AppFooter v-if="!hideChrome" />
+    <AppFooter v-if="!hideFooter" />
     <BottomNavigation />
     <AliceChat />
     <!-- calls temporarily disabled

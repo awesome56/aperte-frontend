@@ -15,6 +15,14 @@ function goSearch() {
   router.push(q ? { path: '/listings', query: { search: q } } : '/listings')
 }
 
+// Pages with their own search bar don't need the header search:
+// home (hero), listings (search bar), login/register (auth pages).
+const NO_HEADER_SEARCH = ['/', '/listings', '/login', '/register']
+const showHeaderSearch = computed(() => !NO_HEADER_SEARCH.includes(route.path))
+// Category chips stay on listings (quick category switching) but hide on
+// home (has its own tiles) and auth pages.
+const showMobileCats = computed(() => !['/', '/login', '/register'].includes(route.path))
+
 // vue-router 5 no longer compares query params when deciding link "active"
 // state, so all /listings?… links would light up together. Compute it here:
 // active when the path matches AND every query param of the target is present.
@@ -145,7 +153,7 @@ watch(() => router.currentRoute.value.fullPath, () => {
       <RouterLink to="/" class="brand">Aperte</RouterLink>
 
       <div class="nav-end">
-        <form v-if="route.path !== '/listings'" class="nav-search" @submit.prevent="goSearch">
+        <form v-if="showHeaderSearch" class="nav-search" @submit.prevent="goSearch">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="ns-icon"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input v-model="searchQuery" type="text" placeholder="Search properties…" class="ns-input" aria-label="Search properties" />
         </form>
@@ -188,22 +196,15 @@ watch(() => router.currentRoute.value.fullPath, () => {
       </div>
     </div>
 
-    <!-- Mobile: full-width search + scrollable category chips (Jumia-style).
-         Home has its own hero search, so the header search hides there
-         (same as the listings page, which has its own search bar). -->
-    <div v-if="route.path !== '/'" class="m-search-row">
-      <form v-if="route.path !== '/listings'" class="m-search" @submit.prevent="goSearch">
+    <!-- Mobile full-width search (hidden where the page has its own search) -->
+    <div v-if="showHeaderSearch" class="m-search-row">
+      <form class="m-search" @submit.prevent="goSearch">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input v-model="searchQuery" type="text" placeholder="Search properties, areas, cities…" aria-label="Search properties" />
       </form>
-      <span v-else class="m-search m-search-ghost" @click="router.push('/listings')">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        Search properties, areas, cities…
-      </span>
     </div>
-    <!-- Home has its own category tiles + BUY/RENT/SHORTLET switch, so the
-         chips hide there too — leaving a clean single-row header. -->
-    <nav v-if="route.path !== '/'" class="m-cats" aria-label="Categories">
+    <!-- Mobile category chips (hidden on home + auth pages) -->
+    <nav v-if="showMobileCats" class="m-cats" aria-label="Categories">
       <RouterLink to="/listings?purpose=sale" :class="{ active: isActive('/listings?purpose=sale') }">Buy</RouterLink>
       <RouterLink to="/listings?purpose=rent" :class="{ active: isActive('/listings?purpose=rent') }">Rent</RouterLink>
       <RouterLink to="/listings?category=shortlet" :class="{ active: isActive('/listings?category=shortlet') }">Shortlets</RouterLink>
@@ -460,7 +461,8 @@ watch(() => router.currentRoute.value.fullPath, () => {
 /* Mobile: single compact row — avatar + primary actions only */
 @media (max-width: 768px) {
   .topbar { display: none; }
-  .navbar { height: auto; }
+  /* Stack brand row / search / chips vertically (navbar is row flex on desktop) */
+  .navbar { height: auto; flex-direction: column; align-items: stretch; }
   .nav-links { display: none; }
   .nav-end { gap: 10px; }
   .login-link { display: none; }

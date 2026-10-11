@@ -768,8 +768,10 @@ onMounted(load)
   .filters {
     display: none;
   }
-  .filter-btn {
-    display: inline-flex;
+  /* Single control cluster on mobile (location pill + Filter + sort):
+     the desktop topbar row would duplicate both buttons. */
+  .topbar-row {
+    display: none;
   }
   .mobile-search {
     display: block;
