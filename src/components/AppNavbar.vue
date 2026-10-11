@@ -188,8 +188,10 @@ watch(() => router.currentRoute.value.fullPath, () => {
       </div>
     </div>
 
-    <!-- Mobile: full-width search + scrollable category chips (Jumia-style) -->
-    <div class="m-search-row">
+    <!-- Mobile: full-width search + scrollable category chips (Jumia-style).
+         Home has its own hero search, so the header search hides there
+         (same as the listings page, which has its own search bar). -->
+    <div v-if="route.path !== '/'" class="m-search-row">
       <form v-if="route.path !== '/listings'" class="m-search" @submit.prevent="goSearch">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input v-model="searchQuery" type="text" placeholder="Search properties, areas, cities…" aria-label="Search properties" />
