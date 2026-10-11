@@ -91,6 +91,21 @@ export async function loadConversation(sessionId: string): Promise<{ role: strin
   return j.messages || []
 }
 
+export async function speakText(text: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${baseURL}/alice/tts`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ text: text.slice(0, 1800) }),
+    })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
+  } catch {
+    return null
+  }
+}
+
 export async function deleteConversation(sessionId: string): Promise<void> {
   await fetch(`${baseURL}/alice/conversations/${encodeURIComponent(sessionId)}`, {
     method: 'DELETE',

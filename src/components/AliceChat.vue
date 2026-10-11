@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
   streamChat, executeConfirmed, listConversations, loadConversation,
-  deleteConversation, newSessionId, type AliceConversation,
+  deleteConversation, newSessionId, speakText, type AliceConversation,
 } from '@/api/alice'
 
 const auth = useAuthStore()
@@ -20,6 +20,37 @@ const confirmBusy = ref(false)
 const convs = ref<AliceConversation[]>([])
 const showConvs = ref(false)
 const bodyEl = ref<HTMLElement | null>(null)
+const voiceOn = ref(false)
+let voiceAudio: HTMLAudioElement | null = null
+
+try {
+  voiceOn.value = localStorage.getItem('aperte_alice_voice') === '1'
+} catch { /* private mode */ }
+
+function stopVoice() {
+  try {
+    voiceAudio?.pause()
+  } catch { /* ignore */ }
+  voiceAudio = null
+}
+
+function toggleVoice() {
+  voiceOn.value = !voiceOn.value
+  try {
+    localStorage.setItem('aperte_alice_voice', voiceOn.value ? '1' : '0')
+  } catch { /* ignore */ }
+  if (!voiceOn.value) stopVoice()
+  else track('alice_voice', 'engagement', { enabled: true })
+}
+
+async function speak(text: string) {
+  if (!voiceOn.value || !text.trim()) return
+  stopVoice()
+  const url = await speakText(text)
+  if (!url) return
+  voiceAudio = new Audio(url)
+  voiceAudio.play().catch(() => { /* autoplay blocked */ })
+}
 
 function track(name: string, category: string, props: Record<string, unknown> = {}) {
   import('@/analytics/tracker').then((m) => m.default.trackEvent(name, category, props))
@@ -44,6 +75,7 @@ async function refreshConvs() {
 
 function toggle() {
   open.value = !open.value
+  if (!open.value) stopVoice()
   if (open.value) {
     track('alice_open', 'engagement')
     if (!sessionId.value) {
@@ -55,6 +87,7 @@ function toggle() {
 }
 
 function newChat() {
+  stopVoice()
   newSessionId().then((s) => (sessionId.value = s))
   pendingConfirm.value = null
   welcome()
@@ -138,6 +171,7 @@ async function send() {
     streaming.value = false
     refreshConvs()
     scrollDown()
+    if (replyMsg().content) speak(replyMsg().content)
   }
 }
 
@@ -189,6 +223,12 @@ onMounted(() => {
         <strong class="alice-title">ALICE</strong>
         <span class="alice-sub">Aperte assistant</span>
         <span class="alice-head-right">
+          <button
+            class="alice-icon-btn"
+            :class="{ on: voiceOn }"
+            title="Voice replies on/off"
+            @click="toggleVoice()"
+          >{{ voiceOn ? '🔊' : '🔇' }}</button>
           <button class="alice-icon-btn" title="New chat" @click="newChat()">＋</button>
           <button class="alice-icon-btn" title="Close" @click="toggle()">✕</button>
         </span>
@@ -295,6 +335,7 @@ onMounted(() => {
   border-radius: 8px;
 }
 .alice-icon-btn:hover { background: #eef1f6; }
+.alice-icon-btn.on { color: var(--color-primary, #2076ff); }
 
 .alice-convs {
   max-height: 160px;
