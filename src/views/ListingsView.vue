@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { propertyApi, type Property } from '@/api'
 import PropertyCard from '@/components/PropertyCard.vue'
@@ -43,11 +43,127 @@ const CITIES = ['Lagos', 'Abuja', 'Port Harcourt', 'Ibadan', 'Benin City', 'Enug
 const AMENITY_OPTIONS = ['furnished', 'parking', 'security', 'ac', 'backup_power', 'swimming_pool', 'gym', 'elevator']
 const SORTS = [
   { key: 'newest', label: 'Newest first' },
+  { key: 'nearby', label: 'Nearest first' },
   { key: 'popular', label: 'Most viewed' },
   { key: 'favorites', label: 'Most saved' },
   { key: 'price_asc', label: 'Price: low to high' },
   { key: 'price_desc', label: 'Price: high to low' },
 ]
+
+// ---- "use my location" (visitor geolocation -> backend proximity sort) ----
+const GEO_KEY = 'aperte_geo'
+const GEO_DISMISS_KEY = 'aperte_geo_dismissed'
+const geo = ref<{ lat: number; lng: number } | null>(null)
+const nearMe = ref(false)
+const geoLoading = ref(false)
+const geoError = ref('')
+const geoDismissed = ref(false)
+
+try {
+  geoDismissed.value = localStorage.getItem(GEO_DISMISS_KEY) === '1'
+} catch { /* private mode */ }
+
+function trackNearMe(enabled: boolean) {
+  import('@/analytics/tracker').then((m) =>
+    m.default.trackEvent('near_me', 'search', { enabled }),
+  )
+}
+
+function loadSavedGeo() {
+  try {
+    const raw = localStorage.getItem(GEO_KEY)
+    if (!raw) return
+    const g = JSON.parse(raw)
+    if (typeof g?.lat === 'number' && typeof g?.lng === 'number') {
+      geo.value = { lat: g.lat, lng: g.lng }
+      nearMe.value = true
+      sort.value = 'nearby'
+    }
+  } catch { /* ignore corrupt value */ }
+}
+
+const GEO_BLOCKED_MSG =
+  'Location is blocked, so your browser did not ask. On a Mac: turn on System Settings → Privacy & Security → Location Services (allow Safari), then in Safari → Settings → Websites → Location set this site to Ask or Allow — then try again. Or pick a city instead.'
+const GEO_UNAVAILABLE_MSG =
+  'Your Mac could not determine a position. Desktops locate via Wi-Fi — turn Wi-Fi on in Control Centre (you do not need to join a network), then click "Use my location" again. Or pick a city instead.'
+const GEO_TIMEOUT_MSG =
+  'Finding your location timed out. On a Mac this usually means Wi-Fi is off — turn it on in Control Centre (no need to join a network) and try again. Or pick a city instead.'
+
+async function useMyLocation() {
+  geoError.value = ''
+  if (!('geolocation' in navigator)) {
+    geoError.value = 'Your browser does not support location. Pick a city instead.'
+    return
+  }
+  // If permission was already denied, browsers (Safari especially) skip the
+  // prompt entirely — detect that first and explain how to re-enable it.
+  try {
+    const perms = (navigator as any).permissions
+    const status = perms ? await perms.query({ name: 'geolocation' }) : null
+    if (status?.state === 'denied') {
+      geoError.value = GEO_BLOCKED_MSG
+      trackNearMe(false)
+      return
+    }
+  } catch { /* Permissions API unsupported — fall through to the normal prompt */ }
+  geoLoading.value = true
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      geo.value = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+      try {
+        localStorage.setItem(GEO_KEY, JSON.stringify(geo.value))
+      } catch { /* private mode */ }
+      nearMe.value = true
+      sort.value = 'nearby'
+      page.value = 1
+      geoLoading.value = false
+      load()
+      trackNearMe(true)
+    },
+    (err) => {
+      geoLoading.value = false
+      if (err.code === err.PERMISSION_DENIED) geoError.value = GEO_BLOCKED_MSG
+      else if (err.code === err.POSITION_UNAVAILABLE) geoError.value = GEO_UNAVAILABLE_MSG
+      else geoError.value = GEO_TIMEOUT_MSG
+      trackNearMe(false)
+    },
+    // desktops have no GPS: keep accuracy off (faster Wi-Fi fix) + allow time for it
+    { timeout: 20000, maximumAge: 600000, enableHighAccuracy: false },
+  )
+}
+
+function clearNearMe() {
+  nearMe.value = false
+  geo.value = null
+  geoError.value = ''
+  try {
+    localStorage.removeItem(GEO_KEY)
+  } catch { /* ignore */ }
+  if (sort.value === 'nearby') sort.value = 'newest'
+  page.value = 1
+  load()
+  trackNearMe(false)
+}
+
+function dismissGeoPrompt() {
+  geoDismissed.value = true
+  try {
+    localStorage.setItem(GEO_DISMISS_KEY, '1')
+  } catch { /* ignore */ }
+}
+
+function onSortChange() {
+  // leaving "Nearest first" turns the location filter off so results stay honest
+  if (sort.value !== 'nearby' && nearMe.value) {
+    nearMe.value = false
+    geo.value = null
+    try {
+      localStorage.removeItem(GEO_KEY)
+    } catch { /* ignore */ }
+    trackNearMe(false)
+  }
+  apply()
+}
 
 const activeFilterCount = computed(() =>
   Object.values(filters).filter((v) => v !== '').length + amenitySel.value.length,
@@ -55,6 +171,7 @@ const activeFilterCount = computed(() =>
 
 const summaryText = computed(() => {
   const parts: string[] = []
+  if (nearMe.value) parts.push('Near you')
   if (filters.city) parts.push(filters.city)
   if (filters.purpose) parts.push(filters.purpose === 'rent' ? 'Rent' : 'Sale')
   if (filters.bedrooms) parts.push(`${filters.bedrooms}+ beds`)
@@ -66,11 +183,15 @@ function filterParams(includePage = true): Record<string, unknown> {
   const params: Record<string, unknown> = {}
   if (includePage) params.page = page.value
   params.per_page = 12
-  params.sort = sort.value
+  params.sort = nearMe.value && geo.value ? 'nearby' : sort.value
   Object.entries(filters).forEach(([k, v]) => {
     if (v) params[k] = v
   })
   if (amenitySel.value.length) params.amenities = amenitySel.value.join(',')
+  if (nearMe.value && geo.value) {
+    params.lat = geo.value.lat
+    params.lng = geo.value.lng
+  }
   return params
 }
 
@@ -151,11 +272,61 @@ function reset() {
   Object.keys(filters).forEach((k) => (filters[k as keyof typeof filters] = ''))
   amenitySel.value = []
   sort.value = 'newest'
+  nearMe.value = false
+  geo.value = null
+  geoError.value = ''
+  try {
+    localStorage.removeItem(GEO_KEY)
+  } catch { /* ignore */ }
   liveCount.value = null
   updateLiveCount()
+  page.value = 1
+  load()
 }
 
-watch(page, load)
+// ---- infinite scroll: append next page when the sentinel scrolls into view ----
+const loadingMore = ref(false)
+const sentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+async function loadMore() {
+  if (loading.value || loadingMore.value || aiLoading.value || !meta.value.has_next) return
+  loadingMore.value = true
+  try {
+    const res = await propertyApi.browse({ ...filterParams(false), page: page.value + 1 })
+    page.value = res.data.meta.page
+    results.value = [...results.value, ...res.data.data]
+    meta.value = res.data.meta
+  } catch {
+    // keep existing results; scrolling again retries
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function disconnectObserver() {
+  observer?.disconnect()
+  observer = null
+}
+
+function connectObserver() {
+  disconnectObserver()
+  if (!sentinel.value) return
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore()
+    },
+    { rootMargin: '600px' },
+  )
+  observer.observe(sentinel.value)
+}
+
+// re-arm the sentinel whenever the list or paging state changes
+watch([() => meta.value.has_next, () => results.value.length, loadingMore], () => {
+  nextTick(connectObserver)
+})
+
+onUnmounted(disconnectObserver)
 watch(() => route.query, () => {
   if (route.query.search) filters.search = route.query.search as string
   if (route.query.category) filters.category = route.query.category as string
@@ -168,7 +339,10 @@ watch(() => route.query, () => {
   apply()
 })
 
-onMounted(load)
+onMounted(() => {
+  loadSavedGeo()
+  load()
+})
 </script>
 
 <template>
@@ -182,6 +356,15 @@ onMounted(load)
           <input v-model="filters.search" type="text" placeholder="Search by name, area or city — e.g. Bodija, Jericho, Agodi…" class="sf-input" />
           <button type="submit" class="btn btn-primary sf-btn">Search</button>
         </form>
+        <div v-if="!nearMe && !geoDismissed" class="geo-prompt">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span>See homes near you first?</span>
+          <button class="btn btn-primary btn-sm" :disabled="geoLoading" @click="useMyLocation">
+            {{ geoLoading ? 'Locating…' : 'Use my location' }}
+          </button>
+          <button class="geo-dismiss" @click="dismissGeoPrompt">Not now</button>
+        </div>
+        <p v-if="geoError && !nearMe" class="geo-error">{{ geoError }}</p>
       </div>
     </div>
 
@@ -192,7 +375,7 @@ onMounted(load)
           Filters
           <span v-if="activeFilterCount" class="filter-count">{{ activeFilterCount }}</span>
         </button>
-        <select v-model="sort" class="sort-select" @click.self="() => {}" @change="apply" aria-label="Sort results">
+        <select v-model="sort" class="sort-select" @click.self="() => {}" @change="onSortChange" aria-label="Sort results">
           <option v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
         </select>
       </div>
@@ -205,15 +388,33 @@ onMounted(load)
             <span>{{ summaryText }}</span>
           </button>
           <button class="ms-filter" :class="{ on: activeFilterCount > 0 }" @click="openSheet">Filter{{ activeFilterCount ? ` (${activeFilterCount})` : '' }}</button>
-          <select v-model="sort" class="ms-sort" @change="apply" aria-label="Sort">
+          <select v-model="sort" class="ms-sort" @change="onSortChange" aria-label="Sort">
             <option v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
           </select>
         </div>
       </div>
 
+      <div v-if="nearMe" class="near-row">
+        <span class="near-chip">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          Showing nearest to you
+          <button class="near-clear" @click="clearNearMe" aria-label="Turn off nearby sorting">×</button>
+        </span>
+      </div>
+
       <div class="layout">
         <!-- desktop filter sidebar -->
         <aside class="filters">
+          <div class="filter-group">
+            <label>Your location</label>
+            <button v-if="!nearMe" class="btn btn-outline btn-block" :disabled="geoLoading" @click="useMyLocation">
+              {{ geoLoading ? 'Locating…' : 'Use my location' }}
+            </button>
+            <button v-else class="btn btn-outline btn-block near-active" @click="clearNearMe">
+              Nearest to you · × Clear
+            </button>
+            <p v-if="geoError" class="geo-error">{{ geoError }}</p>
+          </div>
           <div class="filter-group">
             <label>Category</label>
             <select v-model="filters.category" @change="apply">
@@ -304,10 +505,15 @@ onMounted(load)
             <PropertyCard v-for="p in results" :key="p.id" :property="p" />
           </div>
 
-          <div v-if="meta.pages > 1" class="pagination">
-            <button class="btn btn-outline" :disabled="!meta.has_prev" @click="page--">Prev</button>
-            <span>Page {{ meta.page }} of {{ meta.pages }}</span>
-            <button class="btn btn-outline" :disabled="!meta.has_next" @click="page++">Next</button>
+          <div v-if="loadingMore" class="grid">
+            <SkeletonCard v-for="i in 3" :key="i" />
+          </div>
+          <div v-if="!loading && !loadingMore && results.length" class="end-note">
+            <div v-if="meta.has_next" ref="sentinel" class="scroll-sentinel"></div>
+            <span v-else class="end-text">
+              You've seen all {{ meta.total_count.toLocaleString() }}
+              {{ meta.total_count === 1 ? 'property' : 'properties' }}
+            </span>
           </div>
         </section>
       </div>
@@ -322,6 +528,16 @@ onMounted(load)
           <button class="sheet-close" @click="sheetOpen = false" aria-label="Close filters">×</button>
         </div>
         <div class="sheet-body">
+          <div class="filter-group">
+            <label>Your location</label>
+            <button v-if="!nearMe" class="btn btn-outline btn-block" :disabled="geoLoading" @click="useMyLocation">
+              {{ geoLoading ? 'Locating…' : 'Use my location' }}
+            </button>
+            <button v-else class="btn btn-outline btn-block near-active" @click="clearNearMe">
+              Nearest to you · × Clear
+            </button>
+            <p v-if="geoError" class="geo-error">{{ geoError }}</p>
+          </div>
           <div class="filter-group">
             <label>Location</label>
             <select v-model="filters.city" @change="updateLiveCount">
@@ -552,6 +768,96 @@ onMounted(load)
   color: var(--color-muted, #888);
 }
 
+/* ---- "use my location" ---- */
+.geo-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  background: #fff;
+  border: 1.5px dashed var(--color-border, #e5e8ee);
+  border-radius: 12px;
+  padding: 10px 14px;
+  max-width: 560px;
+  font-size: 0.9rem;
+  color: var(--clr-dark, #333);
+}
+
+.geo-prompt svg {
+  color: var(--clr-blue, #0a84ff);
+  flex-shrink: 0;
+}
+
+.geo-prompt .btn-sm {
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
+.geo-dismiss {
+  border: none;
+  background: none;
+  color: var(--color-muted, #888);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.geo-dismiss:hover {
+  color: var(--clr-dark, #333);
+  text-decoration: underline;
+}
+
+.geo-error {
+  color: #d0342c;
+  font-size: 0.85rem;
+  margin: 8px 0 0;
+  max-width: 560px;
+}
+
+.near-row {
+  display: flex;
+  margin: 2px 0 14px;
+}
+
+.near-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #eaf3ff;
+  border: 1.5px solid #bcd7ff;
+  color: var(--clr-blue, #0a84ff);
+  border-radius: 999px;
+  padding: 7px 8px 7px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.near-clear {
+  border: none;
+  background: rgba(10, 132, 255, 0.14);
+  color: var(--clr-blue, #0a84ff);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.near-clear:hover {
+  background: rgba(10, 132, 255, 0.25);
+}
+
+.near-active {
+  border-color: var(--clr-blue, #0a84ff) !important;
+  color: var(--clr-blue, #0a84ff) !important;
+  font-weight: 600;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 250px 1fr;
@@ -592,6 +898,15 @@ onMounted(load)
   padding: 9px 11px;
   font-size: 0.9rem;
   background: #fff;
+}
+
+/* sidebar/sheet buttons sit flush with the selects above */
+.filter-group .btn-block {
+  padding: 9px 11px;
+  font-size: 0.9rem;
+  border-width: 1.5px;
+  border-radius: 9px;
+  width: 100%;
 }
 
 .amenity-list {
@@ -674,16 +989,22 @@ onMounted(load)
   to { transform: rotate(360deg); }
 }
 
-.pagination {
+.end-note {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 20px;
-  padding-top: 34px;
+  padding: 26px 0 34px;
 }
 
-.pagination span {
-  color: var(--color-muted, #666);
+.end-text {
+  color: var(--color-muted, #888);
+  font-size: 0.88rem;
+  background: #f4f6fa;
+  border-radius: 999px;
+  padding: 8px 18px;
+}
+
+.scroll-sentinel {
+  height: 1px;
 }
 
 /* mobile sheet */

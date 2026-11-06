@@ -37,6 +37,7 @@ export interface Property {
   country: string
   latitude?: number | null
   logitude?: number | null
+  distance_km?: number | null
   year_built?: number | null
   amenities: Record<string, unknown>
   images: { id: number; image_url: string; dp?: number; created_at: string }[]

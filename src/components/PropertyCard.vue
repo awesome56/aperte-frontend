@@ -20,6 +20,13 @@ const imageCount = computed(() => props.property.image_count ?? props.property.i
 const videoCount = computed(() => props.property.video_count ?? props.property.videos?.length ?? 0)
 
 const verified = computed(() => Boolean(props.property.approved))
+
+const distanceText = computed(() => {
+  const d = props.property.distance_km
+  if (d == null) return ''
+  if (d < 1) return `${Math.max(1, Math.round(d * 1000))} m away`
+  return `${d.toFixed(d < 10 ? 1 : 0)} km away`
+})
 </script>
 
 <template>
@@ -53,7 +60,7 @@ const verified = computed(() => Boolean(props.property.approved))
     <div class="body">
       <span class="price">{{ formatPriceCompact(property.price, property.currency) }}<span class="period">{{ pricePeriod(property.category, property.purpose) }}</span></span>
       <h3 class="title"><RouterLink :to="`/properties/${property.id}`">{{ property.title }}</RouterLink></h3>
-      <p class="loc">{{ property.city }}, {{ property.state }}</p>
+      <p class="loc">{{ property.city }}, {{ property.state }}<span v-if="distanceText" class="dist"> · {{ distanceText }}</span></p>
 
       <div class="specs">
         <span v-if="property.bedrooms != null">
@@ -254,6 +261,12 @@ const verified = computed(() => Boolean(props.property.approved))
   color: var(--clr-muted, #666);
   font-size: 0.9rem;
   margin: 0;
+}
+
+.dist {
+  color: var(--clr-blue, #0a84ff);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .specs {
